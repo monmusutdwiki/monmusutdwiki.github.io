@@ -1,0 +1,90 @@
+<!-- The Game formulas page (#formulas), loaded into the middle column by app.js.
+     Every formula here was read from the game's own code (ntd.wasm, client 1.1.146) and
+     masterdata; DATA.md "Game formulas" keeps the same list with the code references. -->
+<h2>Game formulas</h2>
+<p class="lead">How the game turns its data into the numbers you see. Read from the game's own code
+(client 1.1.146); names in <code>code</code> are the game's. Time is in frames, 30 per second.
+The game calculates in 32-bit floats, and "cut" means the fraction is dropped (toward zero).</p>
+
+<h3>Deploy cost</h3>
+<pre>deploy cost = unit cost + class cost</pre>
+<p>The unit's own <code>cost</code> (3, 4 or 5) is only its share; the class tier adds its own
+(<code>job_data.cost</code>: Warrior 11, Guardian (sword &amp; shield) 19, Sniper (bow) 8 …).
+Example: Platina 5 + Guardian 19 = <b>24</b>. Awakening nodes like "Deploy cost −1" and
+cost-down effects in battle come on top of this. <span class="src">PlayerData.Setup, PlayerData.get_Cost</span></p>
+
+<h3>Base stats (HP, ATK, DEF, MDEF)</h3>
+<pre>level rate = clamp((level − 1) / max level, 0, 1)
+stat = cut( (class min + (class max − class min) × level rate) × unit % / 100 )</pre>
+<p>The class tier gives the range (<code>job_data.minLife … maxMagicDefense</code>); the unit card
+gives a percentage for each stat (<code>unitcard.life, power, defense, magicDefense</code>, about
+110–130). Note the rate divides by the max level, not max level − 1, so even at max level it is
+a little under 1 (149/150). Equipment, the personal weapon's level bonuses and abilities are added
+afterwards. There is no separate magic attack: magic classes use ATK.
+<span class="src">PlayerData.Setup, PlayerData.CalcBaseParam</span></p>
+<table><tr><th>Max level</th><td>rarity max level (30 for every rarity) + the rank bonus of the highest rank
+(rank 5: +120) = <b>150</b></td></tr></table>
+<p class="src">UnitCommonDataManager.GetMaxLevel; unit_rarity.maxLevel, unit_rank_info_table.addMaxLevel,
+property Game_PlayerProp_MaxUnitRank = 5</p>
+
+<h3>Other stats from the class</h3>
+<table>
+<tr><th>Range, block, targets, attack interval, move speed</th><td>the class tier's values as they are</td></tr>
+<tr><th>Attack speed</th><td>class value + 100 (%)</td></tr>
+<tr><th>Crit chance</th><td>base 0 %, cap 50 %</td></tr>
+<tr><th>Crit damage</th><td>base 150 %, cap 300 % (the game shows it as +50 %: on top of normal damage)</td></tr>
+<tr><th>Flying units</th><td>block 0, whatever the class says (seen in game)</td></tr>
+<tr><th>Element</th><td>advantage ×1.2, disadvantage ×0.8</td></tr>
+</table>
+<p class="src">PlayerData.Setup; CharacterDataBase static defaults; property Game_PlayerProp_AdvantageAttributeRate / DisadvantageAttributeRate</p>
+<p><b>Awakened</b> (the gold text in race traits) = all 5 awakening nodes unlocked: the points spent
+on awakening must reach 5, and every node costs 1. <span class="src">PlayerData.IsAwakingCompleted;
+property Game_UnitPrimalAbility_PersonalPointLimit = 5</span></p>
+<p>The game's stat panel (潜在覚醒 view): <b>Lv. Max</b> = class 5, max level, with every awakening
+node that changes a stat (HP, ATK, DEF, MDEF, range, attack speed, deploy cost, crit); <b>Lv. 1</b> =
+class 1, level 1, no awakening. Neither includes equipment, sub skills or the personal weapon.</p>
+
+<h3>Skill levels</h3>
+<pre>levels  = highest level in the skill's recipe + 1   (no recipe: 1 level)
+rate    = (level − 1) / (levels − 1)                (only 1 level: rate = 1, the max values)</pre>
+<p>The number of levels comes from the skill's upgrade recipe (<code>recipe_skill</code>), not from the
+skill's own <code>maxLevel</code> field: every unit skill has 5 levels, including the 100 skills
+(mostly second skills) whose <code>maxLevel</code> says 1. <span class="src">Skill.CalcParamRate,
+SkillDataBase.GetMaxLevel</span></p>
+
+<h3>Cooldown, duration and cost at a level</h3>
+<pre>value = cut( rate × max + (1 − rate) × min )        (in frames; ÷ 30 for seconds)</pre>
+<p>For <code>minCoolTime/maxCoolTime</code>, <code>minDurationTime/maxDurationTime</code> and
+<code>minCost/maxCost</code>. The OC skill's cooldown uses the parent skill's rate.
+Example: Platina's Dullahan Form, 1470 → 1350 frames: 49, 48, 47, 46, 45 s.
+<span class="src">Skill.CalcParamRate, Skill.CalcValueByParamRate</span></p>
+
+<h3>Effect values at a level</h3>
+<pre>maxParam = 0  →  value = param (no change with level)
+otherwise      v = (1 − rate) × param + rate × maxParam
+               value = the next whole number if it is within 0.1 of it, else v cut</pre>
+<p>Each effect (talent) has <code>param</code> (level 1) and <code>maxParam</code> (last level).
+Example: Soul Blade ATK +20 % → +50 %: level 2 = 27.5 → <b>27</b> (not within 0.1 of 28), so
+×1.2, ×1.27, ×1.35, ×1.42, ×1.5. A few skills have <code>add_max_level</code>: past that level the value
+goes on from maxParam toward <code>addMaxParam</code> (no unit skill uses it now).
+<span class="src">cAbilityTalent.CreateTalentData, SnapToNearestInt</span></p>
+
+<h3>How effect numbers read in the texts</h3>
+<table>
+<tr><th><code>[MAG,t,p]</code> on a "…RatePlus" effect</th><td>1 + value / 100 (PowerRatePlus 60 → ATK ×1.6)</td></tr>
+<tr><th><code>[MAG,t,p]</code> on a "…RateMinus" effect</th><td>1 − value / 100</td></tr>
+<tr><th><code>[MAG,t,p]</code> other effects</th><td>value / 100</td></tr>
+<tr><th><code>[attack,[MAG,t,p]]</code></th><td>value / 100 of the unit's ATK (DirectHeal 400 → ATK ×4); also hp, defense, mdefense</td></tr>
+<tr><th><code>[0,t,p]</code></th><td>the raw value</td></tr>
+<tr><th><code>[duration]</code>, <code>[cost]</code></th><td>the skill's duration (s) and cost at the level</td></tr>
+</table>
+
+<h3>Damage cut and damage up</h3>
+<table>
+<tr><th>DamageCut v</th><td>damage taken × v / 100: 40 = takes 40 % (−60 %); over 100 = takes more</td></tr>
+<tr><th>DamageUp v</th><td>damage dealt × v / 100: 150 = ×1.5</td></tr>
+</table>
+
+<h3>Time</h3>
+<p>All times (cooldowns, durations, ACT duration, redeploy) are frames at <b>30 per second</b>:
+450 frames = 15 s.</p>
