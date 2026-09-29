@@ -79,11 +79,133 @@ goes on from maxParam toward <code>addMaxParam</code> (no unit skill uses it now
 <tr><th><code>[duration]</code>, <code>[cost]</code></th><td>the skill's duration (s) and cost at the level</td></tr>
 </table>
 
-<h3>Damage cut and damage up</h3>
+<h3>Stats in battle</h3>
+<pre class="sum">Stat = A × B + C          (then kept inside the stat's limits)
+
+A = the stat before battle            (Base stats above)
+B = (1 + Normal %) × (1 + Map %) × (1 + Prayer %) × (1 + Extra %)
+C = flat buffs − flat debuffs</pre>
+<ul>
+<li><b>A</b>: the unit's own stat from her class tier and level, plus awakening, equipment and the
+personal weapon's level bonus.</li>
+<li><b>B</b>: every buff and debuff belongs to one of four groups (Normal, Map, Prayer, Extra). Inside a
+group the % values <b>add up</b>; the groups <b>multiply</b>. Each group's % = its % buffs − its % debuffs.</li>
+<li><b>C</b>: fixed amounts ("ATK +100") are added once, after the %.</li>
+<li>A debuff on a target with resistance is smaller: debuff × (100 − resistance) / 100.</li>
+<li><b>Only the highest counts</b> (no adding) for Attack speed % and Move speed %. That is why the game
+has a separate "attack speed (stacks)" effect for the ones meant to add.</li>
+<li>A "…Fixed" effect (for example range fixed) replaces the result.</li>
+<li><b>ATK, DEF and MDEF</b> in battle stay between <b>50 % and 1000 %</b> of A, and debuffs on them are made
+smaller by the target's "base status" resistance.</li>
+<li>"In the party" effects are added the same way before the battle, so they are already inside A.</li>
+<li>The unit's skills and traits are most likely Normal; which effects use Map, Prayer and Extra is
+not checked yet.</li>
+</ul>
+<p>Example: ATK 1000, a skill ATK +20 % and a trait ATK +30 % (both Normal), and ATK +100:
+1000 × (1 + 0.5) + 100 = <b>1600</b>.
+<span class="src">BuffParamData.CalcParamNum, UpdateTargetParam, IsMaxRateTarget</span></p>
+
+<h3>Damage</h3>
+<pre class="sum">Damage = ( the larger of  H − D ,  H × 10 % ) × (1 − cut₁ %) × (1 − cut₂ %) × …
+
+H    = ATK × (1 + up₁ %) × (1 + up₂ %) × … × Crit × E
+Crit = crit damage %  (150 % = ×1.5)      only on a critical hit; otherwise ×1
+E    = element: ×1.2 advantage, ×0.8 disadvantage, otherwise ×1
+D    = target's DEF (physical), MDEF (magic), 0 (true damage)</pre>
+<ul>
+<li><b>ATK</b>: the attacker's ATK in battle (Stats in battle). A skill's "ATK ×1.8" is an ATK buff, so it
+is already in here. An effect that "deals X % of ATK" hits with X % of ATK instead.</li>
+<li><b>Damage up %</b>: each effect is its own (1 + up %), and they <b>multiply</b>: +20 % and +30 % =
+1.2 × 1.3 = <b>+56 %</b>, not +50 %. They count <b>before DEF</b>. A target's own "damage taken up" when hit
+counts here too.</li>
+<li><b>Crit</b>: a hit is critical if a random number 0–99 is below the attacker's crit chance + the
+target's extra crit chance taken. Crit damage starts at 150 % (+50 %), cap 300 %, plus the target's extra crit
+damage taken. A crit multiplies H, so it also counts before DEF.</li>
+<li><b>E</b>: from the game's settings (#11 = 120, #12 = 80).</li>
+<li><b>D</b>: DEF or MDEF in battle. True damage (Ignore DEF, 防御無視) skips it.</li>
+<li><b>10 % floor</b>: a hit never does less than 10 % of H, however high the DEF.</li>
+<li><b>Damage cut %</b>: each effect is its own (1 − cut %), and they also <b>multiply</b>: −30 % and −30 % =
+0.7 × 0.7 = <b>−51 %</b>, not −60 %, so cuts can never reach 100 %. They count <b>after DEF</b> and after the
+floor. "Damage taken +10 %" is a cut of −10 %: ×1.1.</li>
+<li>Each step drops the fraction. After that: a fixed-damage effect replaces the number, then cover (an ally
+takes the hit), barrier, and HP.</li>
+</ul>
+<p>Example: ATK 2000, damage up +20 %, a crit (150 %), element advantage → H = 2000 × 1.2 × 1.5 × 1.2 = 4320.
+Target DEF 1500 and damage cut 30 %: (4320 − 1500) × 0.7 = <b>1974</b>. Same hit on DEF 5000: 4320 − 5000 is below
+432, so 432 × 0.7 = <b>302</b>.
+<span class="src">DamageCalculater.DamageAction; TalentOption.GetResult / CalcRateValue (Damage = Rate: 1.0 × each v / 100);
+TalentActionDamageUp (BeforeCalc 9/10), TalentActionDamageCut (BeforeDamage 13/14); BattleObject.EvaluateCritical,
+AttackData.SetCritical; CharacterType.GetAttributeRate</span></p>
 <table>
-<tr><th>DamageCut v</th><td>damage taken × v / 100: 40 = takes 40 % (−60 %); over 100 = takes more</td></tr>
-<tr><th>DamageUp v</th><td>damage dealt × v / 100: 150 = ×1.5</td></tr>
+<tr><th>How the data stores them</th><td>the whole multiplier, not the %: damage up <b>120</b> = +20 %, 80 = −20 %;
+damage cut <b>70</b> = cut 30 % (the damage that gets through), 110 = takes +10 %. A second value, if there, is
+the chance the effect works</td></tr>
+<tr><th>Barrier (AddBarrier)</th><td>absorbs damage until broken. First value = what the amount is based on:
+0 a fixed amount, 1 % of max HP, 2 % of ATK; second value = the amount</td></tr>
 </table>
+
+<h3>Ailments</h3>
+<p>How an ailment lands depends on its group. <b>R</b> = the target's resistance to that ailment (0–100).</p>
+
+<h4>Stun: a gauge (no dice)</h4>
+<pre class="sum">gauge = gauge + build-up × (100 − R) / 100        stunned when the gauge reaches 100
+build-up 100 or more: stunned at once, R is not used
+R = 100: never stunned</pre>
+<ul>
+<li>Values: <code>[build-up, duration]</code>. The texts' words: low ≈ 8–15, medium ≈ 35, large ≈ 50,
+very large ≈ 80.</li>
+<li>Build-up 100 (stuns in one hit, even through high resistance): Donne skill 1 (on activation, enemies in
+range; her text doesn't say it) and Seren skill 2.</li>
+<li>The stun's duration is shortened by a second "stun time" resistance, which enemies only get from effects.</li>
+</ul>
+<p class="src">TalentActionAddStun.ActExecute, CharaStatus.AddStun (StunThreshold = 100), CharacterStatusResistance.IsMax</p>
+
+<h4>Chance: Poison, Burn, Freeze, Petrify, Darkness, Curse, Launch</h4>
+<pre class="sum">lands if  a random number 0–99  <  chance × (100 − R) / 100
+R = 100: immune</pre>
+<p>"Ailment chance up" effects raise the chance. The texts' words (rarely, low, medium, high) follow no
+rule: 20 % is called "rarely", "low" or "medium" on different units, so the wiki shows the numbers.</p>
+<table>
+<tr><th>Ailment</th><th>Values in the data</th></tr>
+<tr><td>Burn</td><td>chance, damage (% of the attacker's ATK), duration (usually 900 = 30 s); damage every 3 s as true damage</td></tr>
+<tr><td>Poison</td><td>chance, strength, duration (often "until cured"). One poison with three strengths:
+<b>120</b> Poison (毒), <b>190</b> Deadly Poison (猛毒), <b>280</b> Super Poison (超毒). The strength is the
+damage: every 3 s the target takes exactly that much true damage (DEF doesn't help), so 190 ≈ 63 per second.
+Several poisons don't add up: the strongest counts. Poison does not stop healing; 水毒禍 (Water Poison Curse) is a different
+status that blocks some healing and deals 7 % of current HP every 2 s.</td></tr>
+<tr><td>Freeze</td><td>chance, duration (usually 180 = 6 s)</td></tr>
+<tr><td>Petrify</td><td>chance, duration (usually 180 = 6 s); also a "petrify time" resistance</td></tr>
+<tr><td>Darkness</td><td>chance, miss % (40 or 60), duration; only the strongest darkness stays on a target</td></tr>
+<tr><td>Curse</td><td>curse type (1–13: what the curse does, for example "1 % of max HP every second"),
+chance (always 100), duration</td></tr>
+<tr><td>Launch</td><td>chance, duration</td></tr>
+</table>
+<p class="src">TalentActionAddPoison (IsActivationRandomAbility), TalentActionAddBurn and the others (GameRandom.Range),
+BuffParamData.IsMaxFixedTarget (PoisonDamage)</p>
+
+<h4>Always land: Time stop, Bind, Web, Tentacle</h4>
+<p>No dice and no resistance: enemies have no resistance to these at all.</p>
+<table>
+<tr><th>Ailment</th><th>Values in the data</th></tr>
+<tr><td>Time stop</td><td>duration (15 = 0.5 s, 30 = 1 s)</td></tr>
+<tr><td>Bind</td><td>duration (60–90 = 2–3 s)</td></tr>
+<tr><td>Tentacle</td><td>duration (150 = 5 s)</td></tr>
+<tr><td>Web</td><td>slow % (attack and move speed)</td></tr>
+</table>
+
+<h4>Enemy resistance</h4>
+<table>
+<tr><th>Ailment</th><th>Immune (100)</th><th>Partly (1–99)</th><th>None (0)</th></tr>
+<tr><td>Stun</td><td>632</td><td>450</td><td>2289</td></tr>
+<tr><td>Poison</td><td>788</td><td>230</td><td>2353</td></tr>
+<tr><td>Petrify</td><td>643</td><td>256</td><td>2472</td></tr>
+<tr><td>Freeze</td><td>563</td><td>260</td><td>2548</td></tr>
+<tr><td>Burn</td><td>490</td><td>162</td><td>2719</td></tr>
+<tr><td>Darkness</td><td>425</td><td>332</td><td>2614</td></tr>
+<tr><td>Launch</td><td>702</td><td>220</td><td>2449</td></tr>
+<tr><td>Curse</td><td>55</td><td>11</td><td>3305</td></tr>
+</table>
+<p class="src">Of the 3,371 enemies in the game data (427d684a66); enemydata stunResistance … curseResistance</p>
 
 <h3>Time</h3>
 <p>All times (cooldowns, durations, ACT duration, redeploy) are frames at <b>30 per second</b>:

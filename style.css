@@ -86,7 +86,7 @@ button, input { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 36px; }
 .opt > * { transition: opacity .12s, filter .12s; }
 .has-picks .opt:not(.on) > * { filter: grayscale(1); opacity: .35; }
-.has-picks .opt:not(.on):hover > * { opacity: .75; }
+.has-picks .opt:not(.on):hover > * { opacity: 1; filter: none; }       /* hover shows the colour (owner) */
 .opt:hover { border-color: var(--line); }
 .opt.on { border-color: var(--accent); background: var(--accent-soft); }
 .opt img { height: 30px; width: auto; display: block; }
@@ -276,19 +276,24 @@ h3.sec:has(.slider)::after { order: 1; }
 .subgroup { margin-left: 14px; border-left: 2px solid var(--accent-soft); padding-left: 6px; border-bottom: 0; }
 .subgroup .opt img { height: 26px; }
 .opt .num.wide { width: auto; min-width: 28px; padding: 0 7px; border-radius: 14px; font-size: 12px; }
-/* the Game formulas page */
-.fx svg { stroke-width: 1.6; }
-.page { max-width: 900px; padding: 18px 4px 40px; line-height: 1.6; }
-.page h2 { margin: 0 0 4px; }
-.page h3 { margin: 24px 0 6px; color: var(--accent); }
+/* the Game formulas page: big text, narrow contents on the left, the page takes the rest (owner) */
+.layout.nofilter.formulas { grid-template-columns: 230px minmax(0, 1fr) 0; }
+.layout.formulas .toc { font-size: 14px; }
+.page { max-width: 1200px; padding: 18px 12px 60px; line-height: 1.65; font-size: 16px; }
+.page h2 { margin: 0 0 6px; font-size: 26px; }
+.page h3 { margin: 30px 0 8px; color: var(--accent); font-size: 20px; }
+.page h4 { margin: 18px 0 6px; font-size: 17px; }
 .page .lead { color: var(--muted); margin: 0 0 12px; }
-.page code, .page pre { font-family: ui-monospace, Consolas, monospace; font-size: 13px; background: var(--chip); border-radius: 6px; }
+.page code, .page pre { font-family: ui-monospace, Consolas, monospace; font-size: 15px; background: var(--chip); border-radius: 5px; }
 .page code { padding: 1px 5px; }
-.page pre { padding: 10px 12px; overflow-x: auto; white-space: pre; }
-.page table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
-.page th, .page td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; }
+.page pre { padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.55; }
+.page pre.sum { font-size: 17px; border-left: 3px solid var(--accent); }
+.page table { border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+.page th, .page td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; vertical-align: top; }
 .page th { background: var(--chip); }
-.page .src { color: var(--muted); font-size: 12px; }
+.page .src { color: var(--muted); font-size: 14px; }
+.page ul { margin: 6px 0; padding-left: 22px; }
+.page li { margin: 3px 0; }
 
 .stats { border-left: 1px dashed var(--line); padding-left: 14px; align-self: stretch; }
 
@@ -732,7 +737,7 @@ button.drop:hover { border-color: var(--accent); }
 .fhd { margin: 10px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .fhd:first-child { margin-top: 2px; }
 .opt.off { opacity: .22; filter: grayscale(1); cursor: default; }
-.opt.off:hover { border-color: transparent; }
+.opt.off:hover { border-color: transparent; opacity: .6; filter: none; }   /* no results, but hover shows what it is */
 .fttl { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--text); }
 /* sub skill head: the type as a label (like the game's 攻撃 / 防御 / 支援) */
 .cat-chip { margin: 0; }
@@ -834,3 +839,40 @@ button.drop:hover { border-color: var(--accent); }
 .who-row .opt img.cls-ic { background: #3b3542; border-radius: 7px; padding: 2px; }
 .who-races { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
 .who-races .opt { min-height: 30px; }
+
+/* the Advanced filter's text search (demo, session 9) */
+.fx-search { position: relative; margin: 4px 0 2px; }
+.fx-search input { width: 100%; box-sizing: border-box; padding: 7px 44px 7px 10px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
+.fx-search input:focus { outline: none; border-color: var(--accent); }
+mark.fxm { background: #ffe07a; color: #222; border-radius: 2px; padding: 0 1px; }
+
+
+/* the unit filter panel (owner, session 9): no bold; room around Source and before the tabs */
+#filters .kchip, #filters .ftabs button, #filters .fhd, #filters .dd-lbl, #filters .tag, #filters .fhead b { font-weight: 400; }
+#groups .fx-search { margin-bottom: 10px; }
+#groups > .fhd { margin-top: 6px; }
+#groups > .fgroup[data-group="fsrc"] { padding: 4px 0 2px; }
+#groups > .fgroup[data-group="fsrc"] .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }   /* 2 × 2, same width (owner) */
+#groups > .fgroup[data-group="fsrc"] .opt { width: 100%; }
+#groups > .fgroup[data-group="fsrc"] .kchip { width: 100%; box-sizing: border-box; text-align: center; }
+#groups > .ftabs { margin-top: 20px; }
+.dd-btn .dd-lbl.a_shape, .dd-btn .dd-lbl.a_change, .dd-btn .dd-lbl.a_dmg { color: var(--t-damage); }
+.tag.a_shape, .tag.a_change, .tag.a_dmg { --c: var(--t-damage); }
+.dd-btn .dd-lbl.k_skill { color: var(--t-cost); } .tag.k_skill { --c: var(--t-cost); }
+.dd-btn .dd-lbl.k_field { color: var(--t-field); } .tag.k_field { --c: var(--t-field); }
+.dd-btn .dd-lbl.k_cost { color: var(--t-cost); } .tag.k_cost { --c: var(--t-cost); }
+.dd-btn .dd-lbl.k_tactics { color: var(--t-special); } .tag.k_tactics { --c: var(--t-special); }
+/* awakening lines: their effect chips, small, on the same line */
+.awk-tags { display: flex; flex-wrap: nowrap; margin: 0; gap: 3px; overflow: hidden; min-width: 0; }   /* one row only (owner) */
+.awk-tags .tag { white-space: nowrap; flex: none; }
+.awk-tags .tag { font-size: 10px; padding: 0 6px; }
+.awk-more { font-size: 11px; color: var(--muted); padding: 0 4px; align-self: center; cursor: default; }
+/* the head's number boxes (owner, session 9: Block added): the same boxes, smaller, so three fit
+   the picture's height */
+.unit-head .keys { gap: 5px; }
+.unit-head .key { gap: 0; padding: 3px 10px; line-height: 1.2; min-width: 78px; }
+.unit-head .key b { align-self: flex-end; }   /* numbers right-aligned (owner) */
+.unit-head .key span { font-size: 11px; }
+.unit-head .key b { font-size: 17px; }
+.unit-head .key i { font-size: 12px; }

@@ -70,6 +70,26 @@ const UI = {
     mv_Ground: "Ground", mv_Fly: "Flying", mv_Warp: "Warp", mv_Rush: "Rush",
     mvTip_Ground: "Moves on the ground (warp and rush units too)", mvTip_Fly: "Flies (can't block)", mvTip_Warp: "Warps when moving", mvTip_Rush: "Rushes when moving",
     attack: "Attack",
+    fxAlliesSec: "Allies", fxAttackSec: "Attack", fxSkillSec: "ETC", fxAlliesSecTip: "Buffs, protection and heals on allies and on herself",
+    fxAttackSecTip: "How she attacks and what it does to enemies: shape, damage, debuffs, ailments", fxSkillSecTip: "The skill itself, the battlefield, cost and time, tactics",
+    fx_a_shape: "Attack shape", fx_a_change: "Attack change", fx_a_dmg: "Damage", fx_k_skill: "Skill", fx_k_field: "Battlefield",
+    fx_k_cost: "Cost & time", fx_k_tactics: "Tactics",
+    ak_gauge: "gauge (build-up)", ak_chance: "chance", ak_always: "always lands", failv: "Value", failvTip: "Pick an ailment first",
+    ar_b1: "<30", ar_b30: "30–49", ar_b50: "50–79", ar_b80: "80–99", ar_b100: "100",
+    arTip_b1: "low", arTip_b30: "medium", arTip_b50: "large", arTip_b80: "very large", arTip_b100: "fills the gauge in one hit",
+    ar_c1: "≤20%", ar_c21: "21–50%", ar_c51: "51–99%", ar_c100: "100%",
+    ps_s120: "Poison", ps_s190: "Deadly", ps_s280: "Super", psTip: "damage every 3 s", psHead: "strength", psDmg: "dmg", buildUp: "build-up", chance: "chance",
+    fxSkill: "Skill", fxTileTo: "Tile becomes", fxWeatherTo: "Weather becomes", trueDmg: "true",
+    fxBuffSec: "Buff", fxDebuffSec: "Debuff", fxWhenSec: "When", fxBuffSecTip: "Effects on allies and on herself: buffs, heals, protection, support",
+    fxDebuffSecTip: "Effects on enemies: attack type, damage, debuffs, ailments", fxWhenSecTip: "When it works, from where, drawbacks, ailment chance",
+    fxSearch: "Search skill / trait / weapon text…", fxSource: "Source", fs_skill: "Active skill", fs_trait: "Trait", fs_weapon: "Weapon",
+    fsTip_skill: "Active skill 1 / 2", fsTip_trait: "Race trait", fsTip_weapon: "Personal weapon",
+    fs_awaken: "Awakening", fsTip_awaken: "Awakening nodes (not the flat stat ones: those are in Stats)",
+    headTrait: "race trait", headWeapon: "personal weapon", headAwaken: "awakening", redeployMax: "only the biggest cut counts",
+    flyTrait: "Flies (race trait)",
+    fxChance: "Ailment chance", ch_low: "Low", ch_mid: "Medium", ch_high: "High", ch_sure: "100%",
+    fx_t_atk: "ATK buff", fx_t_def: "DEF buff", fx_t_surv: "Survival", fx_t_heal: "Heal", fx_t_special: "Utility",
+    fx_t_trans: "Attack type", fx_t_dmg: "Damage", fx_t_debuff: "Debuff", fx_t_ail: "Ailment",
     aspd: "Attack speed", weaponType: "Weapon", type: "Type", stv_max: "Lv. Max", stv_lv1: "Lv. 1",
     stvTipMax: "Class 5 ({cls}), Lv {max}, all awakening; no equipment, sub skills or personal weapon",
     stvTip1: "Class 1 ({cls}), Lv 1, no awakening", flyBlockTip: "Flying units can't block", afterAwaken: "after awakening", sortBy: "Sort", sort_release: "Release", sort_name: "Name", sort_class: "Class", sortAsc: "Ascending", sortDesc: "Descending", costShort: "Cost", moveShort: "Move",
@@ -271,6 +291,10 @@ function prep(u) {
   u._rar = W.lookups.rarity[u.rarity]?.code || "Unknown";
   u._stags = new Set(u.skills.flatMap(sid => W.skills[sid]?.stags || []));   // Active skill tags
   u._trecs = Object.entries(u.traitTags || {}).flatMap(([src, list]) => list.map(r => ({ ...parseRec(r), src })));   // Trait tab records
+  u._fx = [...u.skills.flatMap(sid => (W.skills[sid]?.fx || []).map(r => parseFx(r, "skill"))),   // Advanced filter records
+    ...(u.fx?.race || []).map(r => parseFx(r, "trait")), ...(u.fx?.weapon || []).map(r => parseFx(r, "weapon")),
+    ...(u.fx?.awaken || []).map(r => parseFx(r, "awaken"))];
+  u._flies = u.move === "Fly" || !!u.head?.["trait.flight"];      // a race trait can make her fly too
   u._feat = new Set(u.features.filter(t => ["skills_2", "weapon", "oc_skill", "act_boost"].includes(t)));
   if (fam.act) u._feat.add("act");
   u._res = u.resource;
@@ -363,6 +387,176 @@ function traitTabDefs() {
     defs.push(weaponRow);
   }
   return defs;
+}
+/* ---- the unit filter panel (session 9): two panels, a vertical button each (owner):
+   Advanced filter = Allies | Enemies | Utility (lookups.fxTabs), Ailments = one row per ailment,
+   grouped by how it lands (lookups.fxAilments: gauge / chance / always; site Game formulas).
+   Every effect of a skill, race trait or weapon is one record (unit._fx: src, id, blk, scope, who,
+   build / chance / strength; tags.effect_records); an effect pick needs one record that also meets
+   the Source row (both panels) and, for the Allies blocks, Target and Who. */
+const FX_SRC = ["skill", "trait", "weapon", "awaken"];
+/* ailment value ranges: Stun build-up (the gauge fills at 100: 100 = one hit), the others chance % */
+const AIL_RANGES = {
+  b: [["b1", 1, 29], ["b30", 30, 49], ["b50", 50, 79], ["b80", 80, 99], ["b100", 100, 100]],
+  c: [["c1", 1, 20], ["c21", 21, 50], ["c51", 51, 99], ["c100", 100, 100]],
+};
+const POISON = [["s120", 120], ["s190", 190], ["s280", 280]];     // poison strength = damage every 3 s
+let FXBLK = null;                                  // record id -> its Trait tag category (t_atk …)
+let OPT_OF = null;                                 // record id -> [filter block, option] (lookups.fxBlocks)
+function optOf(id) {
+  if (!OPT_OF) {
+    OPT_OF = {};
+    for (const [b, opts] of Object.entries(W.lookups.fxBlocks || {}))
+      for (const o of opts) for (const id of W.lookups.fxMerged?.[o] || [o]) OPT_OF[id] = [b, o];
+  }
+  return OPT_OF[id];
+}
+function parseFx(r, src) {
+  FXBLK ??= Object.fromEntries(W.lookups.traitTags.map(t => [t.id, t.cat]));
+  const [id, scope, who, val = ""] = r.split("|");
+  const num = k => { const m = val.match(new RegExp(k + "(\\d+)")); return m ? +m[1] : null; };
+  return { src, id, blk: FXBLK[id] || W._tagById[id]?.cat || "special", scope, who: who ? who.split(",") : [],
+    build: num("b"), chance: num("c"), strength: num("s"), el: num("e"), wx: num("w"), field: num("f") };
+}
+const fxAllies = () => new Set(W.lookups.fxTabs?.allies || []);
+function fxOK(r) {                                 // a record meets the Source, Target and Who picks
+  const src = picks("fsrc");
+  if (src.size && !src.has(r.src)) return false;
+  if (fxAllies().has(r.blk)) {
+    const sc = picks("fscope"), who = picks("fwho");
+    if (sc.size && !sc.has(r.scope)) return false;
+    if (who.size && ![...who].some(v => v === "none" ? r.scope === "allies" && !r.who.length : r.who.includes(v))) return false;
+  }
+  return true;
+}
+/* the Value picks of the picked ailment ("t_poison|c21", "t_poison|s190"): a range and a strength */
+function ailOK(r) {
+  const p = [...picks("failv")].filter(v => v.startsWith(r.id + "|")).map(v => v.split("|")[1]);
+  const ranges = p.filter(v => v[0] !== "s"), str = p.filter(v => v[0] === "s");
+  const val = r.build ?? r.chance;
+  if (ranges.length && !ranges.some(k => { const x = [...AIL_RANGES.b, ...AIL_RANGES.c].find(z => z[0] === k);
+    return x && val != null && val >= x[1] && val <= x[2] && (k[0] === "b") === (r.build != null); })) return false;
+  if (str.length && !str.some(k => r.strength === +k.slice(1))) return false;
+  return true;
+}
+/* Source / Target / Who alone: some record they apply to meets them; with an effect pick they apply
+   to, the effect's own match checks them */
+function fxModMatch(gid) {
+  const rel = gid === "fsrc" ? () => true : r => fxAllies().has(r.blk);
+  const applies = g => gid === "fsrc" || fxAllies().has(g.id);
+  return u => GROUPS.some(g => g.fx && picks(g.id).size && applies(g)) || u._fx.some(r => rel(r) && fxOK(r));
+}
+function fxTabDefs() {
+  const L = W.lookups, defs = [], cnt = {}, whoCnt = {};
+  const add = (c, k) => c[k] = (c[k] || 0) + 1;
+  const rangeOf = r => r.build != null ? AIL_RANGES.b.find(x => r.build >= x[1] && r.build <= x[2])?.[0]
+    : r.chance != null ? AIL_RANGES.c.find(x => r.chance >= x[1] && r.chance <= x[2])?.[0] : null;
+  for (const u of W.units) {
+    const ids = new Set(), ws = new Set();
+    for (const r of u._fx) {
+      ids.add(r.id); ids.add("src:" + r.src);
+      const k = rangeOf(r); if (k) ids.add(`${r.id}:${k}`);
+      if (r.strength) ids.add(`${r.id}:s${r.strength}`);
+      if (r.el) ids.add(`el:${r.el}`);
+      if (r.wx) ids.add(`wx:${r.wx}`);
+      if (fxAllies().has(r.blk)) (r.who.length ? r.who : r.scope === "allies" ? ["none"] : []).forEach(v => ws.add(v));
+    }
+    ids.forEach(k => add(cnt, k)); ws.forEach(k => add(whoCnt, k));
+  }
+  // both panels: the Source row (it also narrows the search box)
+  defs.push({ id: "fsrc", sec: "top", single: true, head: ui("fxSource"), match: fxModMatch("fsrc"),
+    opts: FX_SRC.map(v => ({ ...textOpt(v, ui("fs_" + v), ui("fsTip_" + v)), cnt: cnt["src:" + v] || 0 })) });
+  // one drop-down per block (lookups.fxBlocks, owner: each option in one place): an option is a
+  // Trait tag (every source), "st:<skill tag>" (the skill's own) or a merged id (lookups.fxMerged)
+  const stc = {};
+  for (const u of W.units) for (const v of u._stags) stc[v] = (stc[v] || 0) + 1;
+  const optCnt = o => o.startsWith("st:") ? stc[o.slice(3)] || 0
+    : L.fxMerged?.[o] ? W.units.filter(u => u._fx.some(r => L.fxMerged[o].includes(r.id))).length : cnt[o] || 0;
+  const optLabel = o => { const l = L.fxLabels?.[o]; if (l) return isJa() ? l.ja : l.en;
+    const t = L.traitTags.find(x => x.id === o); return isJa() ? t.ja : t.en; };
+  const blockMatch = (u, p) => [...p].some(o => o.startsWith("st:") ? u._stags.has(o.slice(3))
+    : u._fx.some(r => (L.fxMerged?.[o] ? L.fxMerged[o].includes(r.id) : r.id === o) && fxOK(r)));
+  for (const [key, blocks] of Object.entries(L.fxTabs || {})) {
+    const tab = key === "skill" ? "fxskill" : key;
+    for (const b of blocks) {
+      const opts = (L.fxBlocks?.[b] || []).filter(o => optCnt(o)).map(o => ({ v: o, label: optLabel(o), chip: `ttag ${b}`, cnt: optCnt(o) }));
+      if (opts.length) defs.push({ id: b, sec: tab, fx: true, dropdown: true, cls: b, label: ui("fx_" + b), opts, match: blockMatch });
+      if (b === "k_field") {                         // which element the tile becomes, which weather
+        const els = Object.keys(L.elements).filter(n => cnt[`el:${n}`]);
+        if (els.length) defs.push({ id: "ftile", sec: tab, fx: true, single: true, dropdown: true, cls: "k_field", label: ui("fxTileTo"),
+          match: (u, p) => u._fx.some(r => r.id === "t_tile" && p.has(String(r.el)) && fxOK(r)),
+          opts: els.map(n => ({ v: n, label: term("elements", L.elements[n]), chip: "ttag k_field", cnt: cnt[`el:${n}`] })) });
+        const wxs = Object.keys(L.weather).filter(n => cnt[`wx:${n}`]);
+        if (wxs.length) defs.push({ id: "fweather", sec: tab, fx: true, single: true, dropdown: true, cls: "k_field", label: ui("fxWeatherTo"),
+          match: (u, p) => u._fx.some(r => r.id === "t_weather" && p.has(String(r.wx)) && fxOK(r)),
+          opts: wxs.map(n => ({ v: n, label: term("weather", L.weather[n]), chip: "ttag k_field", cnt: cnt[`wx:${n}`] })) });
+      }
+    }
+    if (tab !== "allies") continue;
+    const tip = v => `${whoLabel(v)} (${whoCnt[v] || 0})`;
+    const whoOpts = [
+      ...Object.keys(L.elements).filter(n => whoCnt[`el:${n}`]).map(n => ({ v: `el:${n}`, kind: "el", label: whoLabel(`el:${n}`), tip: tip(`el:${n}`),
+        cnt: whoCnt[`el:${n}`], html: `<img src="img/element/${n}.webp" alt="">` })),
+      ...[2, 3, 4, 5, 6, 7, 8].map(n => ({ v: `cl:${n}`, kind: "cl", label: whoLabel(`cl:${n}`), tip: tip(`cl:${n}`),
+        cnt: whoCnt[`cl:${n}`] || 0, html: `<img class="cls-ic" src="img/class/${classFamiliesOf(String(n + 9))[0]}.webp" alt="">` })),
+      ...Object.keys(L.traits).map(n => `tr:${n}`).filter(v => whoCnt[v]).sort((a, c) => whoLabel(a).localeCompare(whoLabel(c)))
+        .map(v => ({ v, kind: "tr", label: whoLabel(v), chip: "who", cnt: whoCnt[v] })),
+      ...(whoCnt.none ? [{ v: "none", kind: "all", label: whoLabel("none"), tip: ui("whoNoneTip"), chip: "who", cnt: whoCnt.none }] : []),
+    ];
+    defs.push({ id: "fwho", sec: tab, dropdown: true, layout: "who", cls: "who", label: ui("who"), opts: whoOpts, match: fxModMatch("fwho") });
+    defs.push({ id: "fscope", sec: tab, head: ui("h_target"), match: fxModMatch("fscope"),
+      opts: ["self", "allies"].map(v => textOpt(v, ui("sc_" + v), ui(v === "self" ? "scopeSelf" : "scopeAllies"))) });
+  }
+  // Enemies: [Ailment] (one pick; in the order of how it lands) and [Value] tied to it: the picked
+  // ailment's chance / build-up ranges and, for Poison, its strengths (owner, session 9)
+  const ailOpts = [], valOpts = [];
+  for (const [kind, ids] of Object.entries(L.fxAilments || {}))
+    for (const id of ids) {
+      if (!cnt[id]) continue;
+      const t = L.traitTags.find(x => x.id === id), name = isJa() ? t.ja : t.en;
+      ailOpts.push({ v: id, label: name, chip: "ttag t_ail", cnt: cnt[id], tip: `${name}: ${ui("ak_" + kind)}` });
+      const rk = id === "t_stun" ? "b" : kind === "chance" ? "c" : null;
+      for (const [k, lo, hi] of rk ? AIL_RANGES[rk] : []) {
+        const n = cnt[`${id}:${k}`];
+        if (n) valOpts.push({ v: `${id}|${k}`, base: id, label: ui("ar_" + k), chip: "ttag t_ail", cnt: n,
+          tip: `${name}: ${ui(rk === "b" ? "buildUp" : "chance")} ${lo === hi ? lo : `${lo}–${hi}`}${rk === "c" ? " %" : ` (${ui("arTip_" + k)})`}` });
+      }
+      if (id === "t_poison") for (const [k, v] of POISON) {
+        const n = cnt[`${id}:${k}`];
+        if (n) valOpts.push({ v: `${id}|${k}`, base: id, label: `${v} ${ui("psDmg")}`, chip: "ttag t_ail", cnt: n,
+          tip: `${ui("ps_" + k)}: ${ui("psHead")} ${v}, ${ui("psTip")}` });
+      }
+    }
+  if (ailOpts.length) {
+    defs.push({ id: "fail", sec: "attack", fx: true, single: true, dropdown: true, cls: "t_ail", label: ui("fx_t_ail"), opts: ailOpts,
+      match: (u, p) => u._fx.some(r => p.has(r.id) && fxOK(r) && ailOK(r)) });
+    defs.push({ id: "failv", sec: "attack", dropdown: true, cls: "t_ail", label: ui("failv"), opts: valOpts, match: () => true });
+  }
+  return defs;
+}
+/* the search box on top of the Advanced filter: skill, race trait and weapon text and the
+   effect names (both languages), only in the picked sources */
+function fxText(u) {
+  if (!u._fxText) {
+    const clean = s => (s || "").replace(/\[[^\]]*\]/g, " ").replace(/<[^>]+>/g, "");
+    const both = k => (W.text[k] || []).map(clean).join(" ");
+    const names = src => u._fx.filter(r => r.src === src).map(r => { const t = W.lookups.traitTags.find(x => x.id === r.id) || W._tagById[r.id];
+      return t ? `${t.en} ${t.ja}` : ""; }).join(" ");
+    u._fxText = {
+      skill: u.skills.map(s => `${both(`skill.${s}.name`)} ${both(`skill.${s}.text`)}`).join(" ") + " " + names("skill"),
+      trait: `${both(`race.${u.race}.name`)} ${both(`race.${u.race}.text`)} ${both(`race.${u.race}.bonus`)} ${names("trait")}`,
+      weapon: u.weapon ? `${both(`weapon.${u.id}.name`)} ${both(`weapon.${u.id}.text`)} ${names("weapon")}` : "",
+    };
+    for (const k in u._fxText) u._fxText[k] = u._fxText[k].toLowerCase();
+  }
+  return u._fxText;
+}
+const fxWords = () => state.mode === "units" ? (state.fq || "").trim().toLowerCase().split(/\s+/).filter(Boolean) : [];
+function fxSearchOK(u, words = fxWords()) {
+  if (!words.length) return true;
+  const t = fxText(u), src = picks("fsrc");
+  const hay = (src.size ? [...src] : FX_SRC).map(k => t[k]).join(" ");
+  return words.every(w => hay.includes(w));
 }
 function tagGroupDefs(tagCount, listed = id => tagCount[id]) {
   const L = W.lookups, defs = [];
@@ -463,7 +657,7 @@ function groupDefs() {
       opts: HITS.map(h => textOpt(h, ui("hit_" + h), ui("hitTip_" + h))) },
     { id: "place", sec: "list", row: "t", single: true, match: (u, p) => p.has(u._place),
       opts: PLACES.map(v => textOpt(v, ui("pl_" + v), ui("plTip_" + v))) },
-    { id: "move", sec: "list", row: "m", single: true, rowLabel: "moveShort", match: (u, p) => [...p].some(v => v === "Ground" ? u.move !== "Fly" : u.move === v),
+    { id: "move", sec: "list", row: "m", single: true, rowLabel: "moveShort", match: (u, p) => [...p].some(v => v === "Ground" ? !u._flies : v === "Fly" ? u._flies : u.move === v),
       opts: MOVES.map(v => textOpt(v, ui("mv_" + v), ui("mvTip_" + v))) },
     { id: "feature", sec: "list", row: "m", match: (u, p) => [...p].some(v => u._feat.has(v)),
       opts: [["skills_2", "skills_2"], ["weapon", "pweapon"], ["act_boost", "act_boost"], ["oc_skill", "oc_skill"]]
@@ -474,14 +668,9 @@ function groupDefs() {
       opts: Object.keys(L.traits).filter(t => traitCount[t]).map(t => ({ v: t, label: term("traits", L.traits[t]),
         chip: "trait", cnt: traitCount[t] })).sort(byLabel) },
   ];
-  defs.push(
-    // Active skill tab: the short skill list (lookups.skillTags), one drop-down per group
-    ...(L.skillGroups || []).map(g => ({ id: g, sec: "skill", dropdown: true, cls: g, label: ui("sg_" + g),
-      match: (u, p) => [...p].some(v => u._stags.has(v)),
-      opts: L.skillTags.filter(t => t.cat === g && stagCount[t.id]).map(t => ({ v: t.id, label: isJa() ? t.ja : t.en,
-        chip: `stag ${g}`, cnt: stagCount[t.id] })) })),
-    ...traitTabDefs(),
-  );
+  // the Advanced filter (demo, session 9): Buff | Debuff | When over every effect record
+  // (the session 5 tabs Skill | Buff | Attack: skillGroups / traitTabDefs, not shown)
+  defs.push(...fxTabDefs());
   return defs;
 }
 let GROUPS = [];
@@ -588,7 +777,7 @@ function groupHTML(g) {
 function buildFilters() {
   GROUPS = groupDefs();
   const box = $("#groups");
-  const secs = { skill: "", trait1: "", trait2: "", unit: "", who: "", what: "", cond: "", list: "" };
+  const secs = { skill: "", trait1: "", trait2: "", allies: "", attack: "", fxskill: "", top: "", unit: "", who: "", what: "", cond: "", list: "" };
   const rows = {};
   for (const g of GROUPS) {
     if (g.row) {
@@ -605,17 +794,27 @@ function buildFilters() {
     for (const [r, blocks] of Object.entries(rows))
       secs[k] = secs[k].replace(`@@row-${r}@@`, `<div class="fgroup frow">${blocks.join('<span class="fsep"></span>')}</div>`);
   // sub skills have no own tab (owner, session 4): the list tabs and the rarity order do that
-  const tabs = [["skill", "skillSec"], ["trait1", "trait1Sec"], ["trait2", "trait2Sec"], ["unit", "unitSec"], ["who", "whoSec"],
+  const tabs = [["skill", "skillSec"], ["trait1", "trait1Sec"], ["trait2", "trait2Sec"], ["allies", "fxAlliesSec"], ["attack", "fxAttackSec"],
+    ["fxskill", "fxSkillSec"], ["unit", "unitSec"], ["who", "whoSec"],
     ["what", state.mode === "units" ? "traitSec" : "whatSec"], ["cond", "condSec"]]
     .filter(([k]) => GROUPS.some(g => g.sec === k));
   if (!tabs.some(([k]) => k === state.fsec)) state.fsec = tabs[0][0];
-  box.innerHTML = `<nav class="ftabs">${tabs.map(([k, l]) => `<button data-sec="${k}" title="${esc(UI.en[l + "Tip"] ? ui(l + "Tip") : "")}">${ui(l)}<b></b></button>`).join("")}</nav>
+  const fxSearch = state.mode === "units" ? `<div class="fx-search"><input id="fxSearch" type="search" placeholder="${esc(ui("fxSearch"))}"
+    value="${esc(state.fq || "")}" autocomplete="off"></div>` : "";
+  // units: the search and Source on top, then the tabs
+  box.innerHTML = `${fxSearch}${secs.top}<nav class="ftabs">${tabs.map(([k, l]) =>
+      `<button data-sec="${k}" title="${esc(UI.en[l + "Tip"] ? ui(l + "Tip") : "")}">${ui(l)}<b></b></button>`).join("")}</nav>
     ${tabs.map(([k]) => `<div class="fsec" data-sec="${k}">${secs[k]}</div>`).join("")}`;
   // the list's own filters (sub skills: rarity, type) sit on the left, behind a button
   $("#subFilter").innerHTML = secs.list + (state.mode !== "subskills" ? "" : `<label class="etc-toggle"><input type="checkbox" id="showEtc"${state.showEtc ? " checked" : ""}>
     ${esc(ui("showEtc"))}</label>`);
   if (state.mode === "units") $("#subFilter .frow")?.insertAdjacentHTML("beforeend", sortHTML());
   showSection();
+  box.oninput = e => {                              // the Advanced filter's text search
+    if (e.target.id !== "fxSearch") return;
+    state.fq = e.target.value; applyFilters(); markSearch();
+    clearTimeout(facetTimer); facetTimer = setTimeout(updateFilterUI, 200);
+  };
   box.onclick = e => {
     const tab = e.target.closest(".ftabs button");
     if (tab) { state.fsec = tab.dataset.sec; store.set("fsec", state.fsec); showSection(); return; }
@@ -629,6 +828,20 @@ function buildFilters() {
     toggle(gid, opt.dataset.v);
   };
   updateFilterUI();
+}
+/* Value follows the Ailment pick: only that ailment's values; greyed with no ailment or none to
+   pick; its label says what the values are (Stun: build-up, the others: chance) */
+function markAilValue() {
+  const el = $('#groups [data-group="failv"]');
+  if (!el) return;
+  const a = [...picks("fail")][0], g = GROUPS.find(x => x.id === "failv");
+  el.querySelectorAll(".dd-list .opt").forEach(o => o.hidden = o.dataset.v.split("|")[0] !== a);
+  const none = !a || !g.opts.some(o => o.base === a);
+  el.classList.toggle("empty", none);
+  el.querySelector(".dd-btn").disabled = none;
+  el.querySelector(".dd-btn").title = !a ? ui("failvTip") : "";
+  if (none) el.querySelector(".dd-list").hidden = true;
+  el.querySelector(".dd-lbl").textContent = a === "t_stun" ? ui("buildUp") : a && !none ? ui("chance") : ui("failv");
 }
 function showSection() {
   document.querySelectorAll("#groups .ftabs button").forEach(b => b.classList.toggle("on", b.dataset.sec === state.fsec));
@@ -677,6 +890,10 @@ function toggle(gid, v) {
     updateFilterUI(); applyFilters(); return;
   }
   const p = picks(gid);
+  // Value (tied to the ailment): one range and one strength at a time (owner)
+  if (gid === "failv" && !p.has(v)) { const s = v.split("|")[1][0] === "s";
+    for (const x of [...p]) if ((x.split("|")[1][0] === "s") === s) p.delete(x); }
+  if (gid === "fail") picks("failv").clear();                // another ailment: its values start empty
   const single = GROUPS.find(g => g.id === gid)?.single;
   if (single && !p.has(v)) {                   // one pick only: a new one replaces the old
     if (gid === "class") picks("weapon").clear();
@@ -694,7 +911,8 @@ function facetCounts() {
   const P = state.picksBy[state.mode] || (state.picksBy[state.mode] = {});
   const q = state.q.trim().toLowerCase();
   const out = new Map();
-  if (!q && !GROUPS.some(g => P[g.id]?.size)) return out;     // nothing picked: the full counts
+  const words = fxWords();
+  if (!q && !words.length && !GROUPS.some(g => P[g.id]?.size)) return out;     // nothing picked: the full counts
   for (const g of GROUPS) {
     if (g.modifier && !g.sub) continue;           // scope / source: no count
     for (const o of g.opts) {
@@ -704,7 +922,7 @@ function facetCounts() {
       else set(g.id, new Set([o.v]));
       const active = GROUPS.filter(h => !h.modifier && P[h.id]?.size);
       let n = 0;
-      for (const x of items()) if ((!q || x._search.includes(q)) && active.every(h => h.match(x, P[h.id]))) n++;
+      for (const x of items()) if ((!q || x._search.includes(q)) && active.every(h => h.match(x, P[h.id])) && fxSearchOK(x, words)) n++;
       for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete P[k]; else P[k] = v; }
       out.set(`${g.id}\u0001${o.v}`, n);
     }
@@ -750,12 +968,13 @@ function updateFilterUI() {
     sub.hidden = !mains.size;
     sub.querySelectorAll(".opt").forEach(o => o.hidden = !mains.has(o.dataset.base));
   }
-  for (const sec of ["skill", "trait1", "trait2", "unit", "who", "what", "cond"]) {
+  for (const sec of ["skill", "trait1", "trait2", "allies", "attack", "fxskill", "unit", "who", "what", "cond"]) {
     const n = GROUPS.filter(g => g.sec === sec).reduce((a, g) => a + picks(g.id).size, 0);
     const b = $(`#groups .ftabs button[data-sec="${sec}"] b`);
     if (b) b.textContent = n || "";
   }
-  $("#filterCount").textContent = total - listPicks || "";
+  markAilValue();
+  $("#filterCount").textContent = total - listPicks + (fxWords().length ? 1 : 0) || "";
   $("#listFilterCount").textContent = listPicks || "";
   $("#listFilterBtn").classList.toggle("has", listPicks > 0);
   markTagChips();
@@ -769,7 +988,7 @@ function applyFilters(stay) {
   let shown = 0;
   const perTab = {};                          // sub skills: matches per list tab (search + filters)
   for (const u of items()) {
-    let ok = !q || u._search.includes(q);
+    let ok = (!q || u._search.includes(q)) && fxSearchOK(u);
     for (const g of active) { if (!ok) break; ok = g.match(u, picks(g.id)); }
     // scope/source picked without a tag: units with any tag there
     if (ok && tagOnlyMods) ok = [...effectsOf(u)].some(([, e]) => (e.scope || isHarm(e)) && scopeOK(e));
@@ -864,6 +1083,37 @@ function traitChips(recs) {
     const extra = (r.scope ? ` <small>${esc(ui(r.scope))}</small>` : "") + (r.who.length ? ` <small>${esc(r.who.map(whoLabel).join(", "))}</small>` : "");
     return `<button class="tag ttag ${t.cat}" data-tag="${r.id}" data-cat="${t.cat}">${esc(isJa() ? t.ja : t.en)}${extra}</button>`; }).join("")}</div>`;
 }
+/* Advanced filter records as chips (demo): effect name, then target / Who / chance small;
+   a chip toggles that filter */
+function fxChips(list, src, keepOrder) {
+  if (!list || !list.length) return "";
+  const byId = Object.fromEntries(W.lookups.traitTags.map(t => [t.id, t]));
+  const order = W.lookups.traitTags.map(t => t.id), seen = new Set();
+  const ail = new Set(Object.values(W.lookups.fxAilments || {}).flat());
+  const parsed = list.map(r => parseFx(r, src));
+  if (!keepOrder) parsed.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  return `<div class="tags">${parsed.map(r => {
+    const t = byId[r.id] || W._tagById[r.id], k = `${r.id}|${r.scope}|${r.who}|${r.build}|${r.chance}|${r.strength}`;
+    if (!t || seen.has(k)) return ""; seen.add(k);
+    // the real value in place of the texts' words: Stun build-up, chance %, poison strength
+    const val = r.build != null ? `${ui("buildUp")} ${r.build}` : r.chance != null && r.chance < 100 ? `${r.chance}%` : "";
+    const str = r.strength ? ui("ps_s" + r.strength) : "";
+    const extra = (r.scope ? ` <small>${esc(ui(r.scope))}</small>` : "") + (r.who.length ? ` <small>${esc(r.who.map(whoLabel).join(", "))}</small>` : "")
+      + (str ? ` <small>${esc(str)}</small>` : "") + (val ? ` <small>${esc(val)}</small>` : "")
+      + (r.el ? ` <small>→ ${esc(term("elements", W.lookups.elements[r.el]))}</small>` : "")
+      + (r.wx ? ` <small>→ ${esc(term("weather", W.lookups.weather[r.wx]))}</small>` : "")
+      + (r.field ? ` <small>${esc(fieldText(r.field))}</small>` : "");
+    const [cat, tag] = ail.has(r.id) ? ["fail", r.id] : optOf(r.id) || ["", ""];
+    return `<button class="tag ttag ${r.blk}"${tag ? ` data-tag="${tag}" data-cat="${cat}"` : ""}>${esc(isJa() ? t.ja : t.en)}${extra}</button>`; }).join("")}</div>`;
+}
+/* a damage field's numbers (lookups.damageFields): damage per hit, how often, how long */
+function fieldText(id) {
+  const f = W.lookups.damageFields?.[id];
+  if (!f) return "";
+  const dmg = f.fixed ? `${f.fixed}` : f.rate ? `${f.rate}% ${ui("atk")}` : "";
+  const t = n => `${+(n / 30).toFixed(2)}${ui("sec")}`;
+  return [dmg && `${dmg} / ${t(f.every)}${f.hit === 3 ? ` ${ui("trueDmg")}` : ""}`, f.lasts > 0 ? t(f.lasts) : ""].filter(Boolean).join(" · ");
+}
 /* a skill's Active skill tags (the filter's short list); a chip toggles that filter */
 function skillChips(ids) {
   if (!ids || !ids.length) return "";
@@ -910,7 +1160,7 @@ function skillCard(sid, n) {
   const oc = s.oc ? `<div class="sub-block head"><span class="kind oc">OC</span><span class="meta" style="margin-left:0">${ui("cd")} <b>${sec(fmtVar(s.oc.cooldown, L))}</b></span></div>` : "";
   return `<div class="card"><div class="head"><span class="kind k${n}">${ui("skill")} ${n}</span>
     <span class="name">${esc(tx(`skill.${sid}.name`))}</span><span class="meta">${meta.map(m => `<span>${m}</span>`).join("")}</span></div>
-    <div class="desc">${rich(tx(`skill.${sid}.text`), s.vars, L)}</div>${oc}${skillChips(s.stags)}</div>`;
+    <div class="desc">${rich(tx(`skill.${sid}.text`), s.vars, L)}</div>${oc}${fxChips(s.fx, "skill")}</div>`;
 }
 function skillsHTML(u) { return u.skills.map((sid, i) => skillCard(sid, i + 1)).join(""); }
 function lvLabel() { return `${ui("lv")} ${state.lv}`; }
@@ -921,7 +1171,7 @@ function raceCard(u) {
     <span class="name">${esc(tx(`race.${u.race}.name`))}</span></div>
     <div class="desc">${rich(tx(`race.${u.race}.text`), a.vars)}</div>
     ${bonus ? `<div class="bonus"><span class="lbl">${ui("awBonus")}</span><span>${rich(bonus, a.vars)}</span></div>` : ""}
-    ${traitChips(u.traitTags?.race)}</div>`;
+    ${fxChips(u.fx?.race, "trait")}</div>`;
 }
 function actCard(u) {
   const word = u._fam.act;
@@ -941,7 +1191,7 @@ function weaponCard(u) {
   return `<div class="card weapon-card"><img src="img/uw/${u.weapon.ability}.webp" alt="" onerror="this.remove()"><div>
     <div class="head"><span class="kind weapon">${ui("weapon")}</span><span class="name">${esc(tx(`weapon.${u.id}.name`))}</span>
     <span class="meta"><span><b>${u.weapon.levels}</b> ${ui("levels")}</span></span></div>
-    <div class="desc">${rich(tx(`weapon.${u.id}.text`), a.vars)}</div>${traitChips(u.traitTags?.weapon)}</div></div>`;
+    <div class="desc">${rich(tx(`weapon.${u.id}.text`), a.vars)}</div>${fxChips(u.fx?.weapon, "weapon")}</div></div>`;
 }
 /* class trait lines: a line that goes on ("…し、" / "…, and") joins the next, the rest stay lines */
 function joinLines(lines) {
@@ -1009,7 +1259,8 @@ function statPanel(u) {
 function awakeningList(u) {
   if (!u.awakening.length) return "";
   return `<div class="awk"><div class="awk-h">${ui("awakening")}</div>${u.awakening.map((a, i) =>
-    `<div class="awk-row"><span class="n">${i + 1}</span><span>${esc(tx(`awaken.${a.ability}.name`))}</span></div>`).join("")}</div>`;
+    `<div class="awk-row"><span class="n">${i + 1}</span><span>${esc(tx(`awaken.${a.ability}.name`))}</span></div>`).join("")}${
+    u.fx?.awaken ? awakenChips(u) : ""}</div>`;   // the nodes' effects: one row under the list (owner)
 }
 function profileCard(u) {
   const p = tx(`unit.${u.id}.profile`);
@@ -1051,7 +1302,8 @@ function renderUnit(u) {
     line(ui("weaponType"), `<img src="img/weapon/${fam.weapon}.webp" alt="">${esc(term("weapons", L.weapons[fam.weapon]))}`),
     line(ui("targets"), `${targetsTxt(top.targets)}`),
     line(ui("type"), traits || "—"),
-    line(ui("move"), `<span title="${esc(ui("mvTip_" + mv))}">${esc(ui("mv_" + mv))}</span>`),
+    line(ui("move"), `<span title="${esc(ui("mvTip_" + mv))}">${esc(ui("mv_" + mv))}</span>${u.move !== "Fly" && u._flies
+      ? `<span class="dot">·</span><span title="${esc(ui("flyTrait"))}">${esc(ui("mv_Fly"))}</span>` : ""}`),
   ].join("");
   if (!UNIT_TABS.includes(state.tab)) state.tab = "details";
   const details = `<div class="cols">
@@ -1074,17 +1326,86 @@ function renderUnit(u) {
     ${UNIT_TABS.map(k => `<div id="tab_${k}"${state.tab === k ? "" : " hidden"}>${tabs[k]}</div>`).join("")}`;
   markTabs();
   markTagChips();
+  markSearch();
+  fitAwk();
+}
+/* the Advanced filter's search words, marked in the unit page's skill / trait / weapon text */
+function markSearch() {
+  const box = $("#detail");
+  if (!box) return;
+  box.querySelectorAll("mark.fxm").forEach(m => m.replaceWith(m.textContent));
+  box.normalize();
+  const words = fxWords();
+  if (!words.length || state.mode !== "units") return;
+  const re = new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi");
+  for (const d of box.querySelectorAll(".desc, .card .name")) {
+    const walk = document.createTreeWalker(d, NodeFilter.SHOW_TEXT), nodes = [];
+    while (walk.nextNode()) nodes.push(walk.currentNode);
+    for (const n of nodes) {
+      if (!re.test(n.data)) continue;
+      re.lastIndex = 0;
+      const span = document.createElement("span");
+      span.innerHTML = esc(n.data).replace(re, m => `<mark class="fxm">${m}</mark>`);
+      n.replaceWith(...span.childNodes);
+    }
+  }
 }
 /* head: deploy cost and redeploy time only (owner, session 5); "a → b" = before → after awakening */
 function keyStats(u) {
-  const aw = awakenSum(u);
+  const aw = awakenSum(u), h = u.head || {};
   const pair = (label, base, after, fmt, tip) => `<div class="key" title="${esc(tip)}"><span>${label}</span>
     <b>${fmt(base)}${after !== base ? `<i> → </i><em>${fmt(after)}</em>` : ""}</b></div>`;
-  const cost = u._deploy, rd = Math.round(u.redeploy * 10) / 10;
+  // left: unit + class + the race trait (always there); → with awakening and the personal weapon
+  // (both have to be earned)
+  const tc = h["trait.cost"] || 0, wc = h["weapon.cost"] || 0;
+  const cost = u._deploy + tc, costAw = cost + wc + (aw.cost || 0) + (h["trait.cost.aw"] || 0);
+  const costTip = [ui("deployTip"), tc && `${ui("headTrait")} ${tc > 0 ? "+" : ""}${tc}`, wc && `${ui("headWeapon")} ${wc > 0 ? "+" : ""}${wc}`,
+    costAw !== cost && `→ ${ui("headAwaken")} / ${ui("headWeapon")}`].filter(Boolean).join(", ");
+  // redeploy: the game keeps only the biggest cut (TalentOption TimeShortening = Max; Game formulas)
+  const rd = Math.round(u.redeploy * 10) / 10;
+  const cuts = [["headAwaken", aw.redeployPct], ["headTrait", h["trait.redeployPct"]], ["headWeapon", h["weapon.redeployPct"]]].filter(c => c[1]);
+  const base = h["trait.redeployPct"] || 0, all = Math.max(base, h["weapon.redeployPct"] || 0, aw.redeployPct || 0);
+  const rdTip = cuts.length ? cuts.map(([k, v]) => `${ui(k)} −${v}%`).join(", ") + (cuts.length > 1 ? ` (${ui("redeployMax")})` : "") : ui("redeploy");
   return `<div class="keys">
-    ${pair(ui("costShort"), cost, cost + (aw.cost || 0), v => v, ui("deployTip") + (aw.cost ? ` → ${ui("afterAwaken")}` : ""))}
-    ${pair(ui("redeploy"), rd, aw.redeployPct ? num(rd * (100 - aw.redeployPct) / 100) : rd, sec, aw.redeployPct ? `→ ${ui("afterAwaken")}` : ui("redeploy"))}
+    ${pair(ui("costShort"), cost, costAw, v => v, costTip)}
+    ${pair(ui("redeploy"), num(rd * (100 - base) / 100), num(rd * (100 - all) / 100), v => v, rdTip)}
+    ${headBlock(u, u._fam.tiers[u._fam.tiers.length - 1], pair)}
   </div>`;
+}
+/* the awakening nodes' chips under the awakening list: one row (owner); her own stat buffs last,
+   the ones that don't fit go into "+n" (fitAwk) */
+function awakenChips(u) {
+  const recs = u.fx.awaken.map(r => [r, parseFx(r, "awaken")]);
+  const own = p => ["t_atk", "t_def"].includes(p.blk) && p.scope === "self";
+  recs.sort((a, b) => own(a[1]) - own(b[1]));
+  const html = fxChips(recs.map(x => x[0]), "awaken", true);
+  return html.replace('<div class="tags">', '<div class="tags awk-tags">').replace(/<\/div>$/, '<span class="awk-more" hidden></span></div>');
+}
+/* one row: hide the chips that don't fit (from the end), "+n" names them */
+function fitAwk() {
+  const el = $("#detail .awk-tags");
+  if (!el) return;
+  const chips = [...el.querySelectorAll(".tag")], more = el.querySelector(".awk-more");
+  chips.forEach(c => c.hidden = false); more.hidden = true;
+  const hidden = [];
+  while (el.scrollWidth > el.clientWidth + 1 && hidden.length < chips.length - 1) {
+    const c = chips[chips.length - 1 - hidden.length];
+    c.hidden = true; hidden.unshift(c.textContent.replace(/\s+/g, " ").trim());
+    more.hidden = false; more.textContent = `+${hidden.length}`; more.title = hidden.join(", ");
+  }
+}
+window.addEventListener("resize", () => fitAwk());
+/* the head's block: the class's (flying: 0), the race trait's / weapon's always-on change (a fixed
+   value replaces, a bonus adds); → with the awakened bonus */
+function headBlock(u, top, pair) {
+  const h = u.head || {}, cls = blockOf(u, top);
+  if (u.move === "Fly") return pair(ui("block"), 0, 0, v => v, ui("flyBlockTip"));
+  const fixed = h["trait.blockFixed"] ?? h["weapon.blockFixed"];
+  const b = (fixed ?? cls) + (h["trait.block"] || 0);
+  const a = b + (h["weapon.block"] || 0) + (h["trait.block.aw"] || 0) + (h["weapon.block.aw"] || 0);
+  const tip = [`${ui("cls")} ${cls}`, fixed != null && `${ui("headTrait")} = ${fixed}`, h["trait.block"] && `${ui("headTrait")} +${h["trait.block"]}`,
+    h["weapon.block"] && `→ ${ui("headWeapon")} +${h["weapon.block"]}`, (h["trait.block.aw"] || h["weapon.block.aw"]) && `→ ${ui("afterAwaken")}`].filter(Boolean).join(", ");
+  return pair(ui("block"), b, a, v => v, tip);
 }
 /* class tiers as buttons, 1 → 5 left to right; the last one is the default */
 function tierButtons(u) {
@@ -1167,7 +1488,9 @@ $("#detail").onclick = e => {
     return;
   }
   const tag = e.target.closest(".tag[data-tag]");
-  if (tag) { toggle(tag.dataset.cat, tag.dataset.tag); return; }
+  if (tag) {
+    toggle(tag.dataset.cat, tag.dataset.tag); return;
+  }
   const wc = e.target.closest(".wchip");
   if (wc) {
     if (wc.dataset.wg === "weapon" && !picks("weapon").has(wc.dataset.wv)) {
@@ -1691,6 +2014,7 @@ function setMode(mode, fromHash) {
   $("#listFilterBtn").hidden = !listed;
   $("#subFilter").hidden = !listed || !state.lf;
   $("#layout").classList.toggle("nofilter", !listed);
+  $("#layout").classList.toggle("formulas", mode === "formulas");   // narrow contents, wide page (owner)
   $("#search").placeholder = ui(mode === "subskills" ? "searchSub" : "search");
   buildMenu();
   if (listed) { buildFilters(); applyFilters(); } else $("#count").textContent = "";
@@ -1778,6 +2102,7 @@ $("#subFilter").onclick = e => {
    the reset button on the left = the search and the left filter (the list's own groups) */
 function clearSide(left) {
   for (const g of GROUPS) if ((g.sec === "list") === left) picks(g.id).clear();
+  if (!left && $("#fxSearch")) { state.fq = ""; $("#fxSearch").value = ""; markSearch(); }
   updateFilterUI(); applyFilters();
 }
 $("#clear").onclick = () => clearSide(false);
