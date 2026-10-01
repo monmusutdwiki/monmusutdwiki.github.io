@@ -246,11 +246,13 @@ h3.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .awk-row { display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.35; }
 .awk-row .n { color: var(--aw); font-weight: 800; width: 12px; flex: none; font-variant-numeric: tabular-nums; }
 
-/* skill level in the skill card's head: Lv n − short bar + */
-.lvctl { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 12px; font-weight: 600; }
-.lv-n { min-width: 34px; font-variant-numeric: tabular-nums; }
-.lvctl input { width: 64px; accent-color: var(--accent); margin: 0 2px; }
-.lvctl button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none;
+/* skill level in the skill card's head: − Lv n + */
+.lvctl { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; font-size: 12px; font-weight: 600; }
+.lv-n { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+/* cooldown / duration: an icon before the value */
+.card .meta > span { display: inline-flex; align-items: center; gap: 3px; }
+.m-ic { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round;
+  stroke-linejoin: round; cursor: help; }.lvctl button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none;
   color: var(--text); font-weight: 700; line-height: 1; cursor: pointer; }
 .lvctl button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .lvctl button:disabled { opacity: .35; cursor: default; }

@@ -1061,36 +1061,33 @@ function skillCard(sid, n) {
   if (!s) return "";
   const L = { lv: Math.min(state.slv[sid] ?? state.lv, s.maxLevel), max: s.maxLevel };
   const meta = [];
-  if (s.cooldown) meta.push(`${ui("cd")} <b>${sec(fmtVar(s.cooldown, L))}</b>`);
-  if (s.duration && fmtVar(s.duration, L) !== "0") meta.push(`${ui("dur")} <b>${sec(fmtVar(s.duration, L))}</b>`);
-  if (s.cost) meta.push(`${ui("cost")} <b>${fmtVar(s.cost, L)}</b>`);
-  const oc = s.oc ? `<div class="sub-block head"><span class="kind oc">OC</span><span class="meta" style="margin-left:0">${ui("cd")} <b>${sec(fmtVar(s.oc.cooldown, L))}</b></span></div>` : "";
+  if (s.cooldown) meta.push(metaVal("cd", sec(fmtVar(s.cooldown, L))));
+  if (s.duration && fmtVar(s.duration, L) !== "0") meta.push(metaVal("dur", sec(fmtVar(s.duration, L))));
+  if (s.cost) meta.push(`<span>${ui("cost")} <b>${fmtVar(s.cost, L)}</b></span>`);
+  const oc = s.oc ? `<div class="sub-block head"><span class="kind oc">OC</span><span class="meta" style="margin-left:0">${metaVal("cd", sec(fmtVar(s.oc.cooldown, L)))}</span></div>` : "";
   return `<div class="card" data-skill="${sid}" data-n="${n}"><div class="head"><span class="kind k${n}">${ui("skill")} ${n}</span>
-    <span class="name">${esc(tx(`skill.${sid}.name`))}</span><span class="meta">${meta.map(m => `<span>${m}</span>`).join("")}</span>${lvControl(L)}</div>
+    <span class="name">${esc(tx(`skill.${sid}.name`))}</span><span class="meta">${meta.join("")}</span>${lvControl(L)}</div>
     <div class="desc">${rich(tx(`skill.${sid}.text`), s.vars, L)}</div>${oc}${fxChips(s.fx, "skill")}</div>`;
 }
 function skillsHTML(u) { return u.skills.map((sid, i) => skillCard(sid, i + 1)).join(""); }
-/* skill level in the skill card's head (owner, session 10): Lv n − bar +, one per skill */
+/* cooldown / duration in card heads: an icon (the word as its tip) and the value (owner, session 10) */
+const META_SVG = {
+  cd: '<path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3h-3M10 7v3.2l2 1.6"/>',                  // clock + arrow round
+  dur: '<path d="M6 3h8M6 17h8M7 3v2.5c0 1.8 3 3 3 4.5s-3 2.7-3 4.5V17M13 3v2.5c0 1.8-3 3-3 4.5s3 2.7 3 4.5V17"/>',   // hourglass
+};
+function metaVal(k, v) {
+  return `<span title="${esc(ui(k))}"><svg class="m-ic" viewBox="0 0 20 20" aria-label="${esc(ui(k))}">${META_SVG[k]}</svg><b>${v}</b></span>`;
+}
+/* skill level in the skill card's head (owner, session 10): − Lv n +, one per skill */
 function lvControl(L) {
   if (L.max < 2) return "";
-  return `<span class="lvctl"><span class="lv-n">${ui("lv")} ${L.lv}</span><button data-lvstep="-1"${L.lv <= 1 ? " disabled" : ""} aria-label="level down">−</button><input
-    type="range" min="1" max="${L.max}" step="1" value="${L.lv}" aria-label="${ui("lv")}"><button data-lvstep="1"${L.lv >= L.max ? " disabled" : ""} aria-label="level up">+</button></span>`;
+  return `<span class="lvctl"><button data-lvstep="-1"${L.lv <= 1 ? " disabled" : ""} aria-label="level down">−</button><span
+    class="lv-n">${ui("lv")} ${L.lv}</span><button data-lvstep="1"${L.lv >= L.max ? " disabled" : ""} aria-label="level up">+</button></span>`;
 }
 function setSkillLv(card, lv) {
-  const sid = card.dataset.skill, max = W.skills[sid].maxLevel;
-  state.slv[sid] = lv = Math.max(1, Math.min(max, lv));
-  // the new card's text, numbers and chips; the level bar itself stays (a drag goes on)
-  const tmp = document.createElement("div");
-  tmp.innerHTML = skillCard(sid, +card.dataset.n);
-  const nc = tmp.firstElementChild, head = card.querySelector(".head"), nhead = nc.querySelector(".head");
-  head.querySelector(".meta").replaceWith(nhead.querySelector(".meta"));
-  const ctl = head.querySelector(".lvctl"), nctl = nhead.querySelector(".lvctl");
-  ctl.querySelector(".lv-n").textContent = nctl.querySelector(".lv-n").textContent;
-  const nb = nctl.querySelectorAll("button");
-  ctl.querySelectorAll("button").forEach((b, i) => b.disabled = nb[i].disabled);
-  ctl.querySelector("input").value = lv;
-  [...card.children].forEach(c => c !== head && c.remove());
-  [...nc.children].forEach(c => c !== nhead && card.append(c));
+  const sid = card.dataset.skill;
+  state.slv[sid] = Math.max(1, Math.min(W.skills[sid].maxLevel, lv));
+  card.outerHTML = skillCard(sid, +card.dataset.n);
   markTagChips();
 }
 function raceCard(u) {
@@ -1111,7 +1108,7 @@ function actCard(u) {
     <div class="desc">${rich(tx(`curse.${u.curse}.text`), (W.abilities[`curse:${u.curse}`] || {}).vars)}</div></div>` : "";
   return `<div class="card"><div class="head"><span class="kind act">ACT</span>
     <span class="name">${esc(term("glossary", word))}</span>
-    ${dur ? `<span class="meta"><span>${ui("dur")} <b>${sec(dur)}</b></span></span>` : ""}</div>
+    ${dur ? `<span class="meta">${metaVal("dur", sec(dur))}</span>` : ""}</div>
     <div class="desc">${rich(tx(`glossary.${word}.text`))}</div>${curse}</div>`;
 }
 function weaponCard(u) {
@@ -1455,11 +1452,6 @@ function tierButtons(u) {
 function markTabs() {
   document.querySelectorAll("#detail .tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === state.tab));
 }
-/* skill level bar: only that skill card is drawn again */
-$("#detail").addEventListener("input", e => {
-  const card = e.target.closest(".lvctl") && e.target.closest(".card[data-skill]");
-  if (card) setSkillLv(card, +e.target.value);
-});
 $("#detail").onclick = e => {
   const step = e.target.closest("[data-lvstep]");
   if (step) {                                 // skill level − / +
