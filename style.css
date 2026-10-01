@@ -4,7 +4,7 @@
   --buff: #2f9e44; --debuff: #e03131; --ailment: #9c36b5; --immunity: #0c8599; --mechanic: #1971c2; --unit: #e8590c;
   --t-stat: #2f9e44; --t-damage: #d6336c; --t-survival: #0c8599; --t-healing: #5c940d; --t-debuff: #e03131;
   --t-ailment: #9c36b5; --t-cost: #e67700; --t-field: #1971c2; --t-special: #5f3dc4; --t-cond: #5c6370; --t-drawback: #a61e4d;
-  --aw: #e67700; --filter-w: 320px;
+  --aw: #e67700; --filter-w: 320px; --df-new: #e03131; --df-num: #b8860b;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -13,7 +13,7 @@
     --buff: #51cf66; --debuff: #ff6b6b; --ailment: #cc5de8; --immunity: #3bc9db; --mechanic: #4dabf7; --unit: #ff922b;
     --t-stat: #51cf66; --t-damage: #f06595; --t-survival: #3bc9db; --t-healing: #94d82d; --t-debuff: #ff6b6b;
     --t-ailment: #cc5de8; --t-cost: #fcc419; --t-field: #4dabf7; --t-special: #9775fa; --t-cond: #adb5bd; --t-drawback: #f783ac;
-    --aw: #ffa94d;
+    --aw: #ffa94d; --df-new: #ff6b6b; --df-num: #ffd43b;
   }
 }
 * { box-sizing: border-box; }
@@ -220,6 +220,11 @@ h3.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .desc { margin: 8px 0; white-space: pre-line; }
 .desc b.v { color: var(--accent); font-variant-numeric: tabular-nums; }
 .desc .aw { color: var(--aw); font-weight: 600; }
+/* Class trait tab: what this tier changes from tier 1: new wording red, changed numbers yellow */
+.df-new, .df-new b.v { color: var(--df-new); }
+.df-num, .df-num b.v, .card .meta b.df-num { color: var(--df-num); }
+/* a class trait value the text only says in words ("effect: Medium"): the data's number after it */
+.desc .hv { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-left: 2px; cursor: help; }
 .desc .naw { color: var(--muted); text-decoration: line-through dotted; }
 .desc .gls { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 .desc .gls:hover { color: var(--accent); }
@@ -241,13 +246,15 @@ h3.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .awk-row { display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.35; }
 .awk-row .n { color: var(--aw); font-weight: 800; width: 12px; flex: none; font-variant-numeric: tabular-nums; }
 
-/* sliders: class tier (head), skill level (skills header) */
-.slider { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
-.slider input { width: 180px; accent-color: var(--accent); }
-.sl-lbl { min-width: 52px; color: var(--text); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
-.info > .slider { margin-top: 2px; }
-h3.sec .slider { margin-left: auto; order: 2; }
-h3.sec:has(.slider)::after { order: 1; }
+/* skill level in the skill card's head: Lv n − short bar + */
+.lvctl { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 12px; font-weight: 600; }
+.lv-n { min-width: 34px; font-variant-numeric: tabular-nums; }
+.lvctl input { width: 64px; accent-color: var(--accent); margin: 0 2px; }
+.lvctl button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none;
+  color: var(--text); font-weight: 700; line-height: 1; cursor: pointer; }
+.lvctl button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.lvctl button:disabled { opacity: .35; cursor: default; }
+.det-tab { margin-top: 14px; }
 .est { color: var(--aw); cursor: help; }
 .lvonly { color: var(--muted); font-style: italic; }
 
@@ -295,33 +302,36 @@ h3.sec:has(.slider)::after { order: 1; }
 .page ul { margin: 6px 0; padding-left: 22px; }
 .page li { margin: 3px 0; }
 
-.stats { border-left: 1px dashed var(--line); padding-left: 14px; align-self: stretch; }
 
-/* unit head (session 5): face (+ skin ‹ n/N ›) | name, title, Class / Weapon / Type / Collab lines |
-   the game's stat panel with Lv. Max | Lv. 1 | awakening */
-.summary.unit-head { grid-template-columns: 190px 470px auto minmax(max-content, 1fr); }   /* name block: one fixed width for every unit; the spare space goes to the awakening column (owner) */
-.unit-head .awk-row { white-space: nowrap; }
-/* deploy cost + redeploy: two boxes stacked; "a → b" = before → after awakening (gold) */
-.keys { display: flex; flex-direction: column; gap: 8px; border-left: 1px dashed var(--line); padding-left: 16px; align-self: stretch; }
-.key { display: flex; flex-direction: column; gap: 2px; background: var(--chip); border-radius: 5px; padding: 6px 12px; min-width: 104px; cursor: help; }
-.key span { color: var(--muted); font-size: 12px; }
-.key b { font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.key i { font-style: normal; color: var(--muted); font-size: 15px; font-weight: 400; }
-.key em { font-style: normal; color: var(--aw); }
+/* unit head (session 10): face (+ skin ‹ n/N ›) | name, title and three rows of label + value
+   (Class · Attack · Cost / Weapon · Targets · Redeploy / Type · Movement · Block; one fixed width for
+   every unit) | awakening (takes the rest; under the head as one block when there is no room) */
+.summary.unit-head { grid-template-columns: 190px max-content minmax(0, 1fr); }
+.unit-head .awk { min-width: 0; }
+/* the numbers: "a → b" = before → after awakening (gold) */
+.il .v .num { font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help; }
+.il .v .num i { font-style: normal; color: var(--muted); font-weight: 400; margin: 0 4px; }
+.il .v .num em { font-style: normal; color: var(--aw); }
 /* class tiers as buttons (Class trait tab) */
 .tier-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 10px; }
 .tier-btns button { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 5px; padding: 5px 14px;
   font-weight: 600; cursor: pointer; }
 .tier-btns button:hover { color: var(--text); }
 .tier-btns button.on { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
-/* Stats tab: the game's panel */
-.stats-tab { max-width: 560px; margin-top: 14px; }
-.stats-tab .stats { border-left: 0; padding-left: 0; }
-.stats-tab .sp { padding: 5px 12px; font-size: 14px; }
-.stats-tab .sp b { font-size: 15px; }
-.stats-tab .sp-grid { gap: 5px 8px; }
+/* Stats tab: the Muv-Luv wiki's stat card (icon, name, big number; 56 px head, 46 px rows) */
+.stats-tab { max-width: 860px; margin-top: 14px; }
+.st-card { padding: 0 16px; margin-bottom: 0; }
+.st-head { height: 56px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.st-head .stv { margin: 0; }
+.st-head .stv button { flex: none; padding: 5px 14px; font-size: 13px; }
+.st-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; }   /* always two groups (owner) */
+.st-row { display: flex; align-items: center; gap: 10px; height: 46px; border-bottom: 1px solid var(--line); }
+.st-col .st-row:last-child { border-bottom: 0; }
+.st-row[title] { cursor: help; }
+.st-ic { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.st-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-.stats-tab .stv button { padding: 5px 8px; font-size: 13px; }
 .face-wrap { position: relative; }
 .skin-nav { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px;
   background: rgba(0, 0, 0, .62); border-radius: 5px; padding: 1px 3px; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
@@ -336,55 +346,59 @@ h3.sec:has(.slider)::after { order: 1; }
 .il .v img { height: 26px; width: auto; }
 .il .v .dot { color: var(--muted); font-weight: 400; }
 .il .v { flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.il .v.wrap { flex-wrap: wrap; row-gap: 3px; column-gap: 4px; padding: 3.5px 0; }   /* Type, Attack: a second line instead of a wider column (owner) */
+/* a row with a second line: every label and value stays on the first line */
+.unit-head .il .k, .unit-head .il .v { align-self: start; min-height: 28px; }
+.unit-head .il .k { display: flex; align-items: center; }
 .il .v [title] { cursor: help; }
 .il .v .tag.trait { cursor: pointer; }
 .ilines { grid-auto-rows: 28px; }
 .unit-head .info { gap: 4px; }
-/* name row, title and the three label rows share one grid: the collab title starts where the
-   Attack label does */
-.unit-head .info { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, .8fr);
-  grid-template-rows: auto auto repeat(3, 28px); column-gap: 12px; row-gap: 4px; align-items: center; align-content: start; }
-.unit-head .info h2 { grid-column: 1 / 3; }
-.unit-head .info .sub { grid-column: 1 / -1; margin-top: -4px; }
+/* name row, title and the three label rows share one grid; the name row (name | collab title at
+   its right end) and the title span the whole width and never size the columns (contain), so
+   every unit has the same columns (owner, session 10: no bounce between units) */
+.unit-head .info { display: grid; grid-template-columns: max-content var(--v1) max-content var(--v2) max-content var(--v3);
+  --v1: 150px; --v2: 128px; --v3: 84px;
+  grid-template-rows: auto auto repeat(3, minmax(28px, auto)); column-gap: 12px; row-gap: 4px; align-items: center; align-content: start; }
+.unit-head .info .h-row { grid-column: 1 / -1; contain: inline-size; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.unit-head .info .sub { grid-column: 1 / -1; margin-top: -4px; contain: inline-size; }
 .unit-head .ilines { display: contents; }
 .unit-head h2 { display: flex; align-items: center; min-width: 0; }
 .unit-head h2 .ruby, .unit-head h2 .nm { white-space: nowrap; }
 /* collab title: the free space at the right end of the name row */
-.h-collab { grid-column: 3 / 5; padding-left: 15px; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap;
+.h-collab { margin-left: auto; text-align: right; flex: 0 1000 auto;   /* shrinks (…) before the name does */
+  color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.unit-head .il:nth-child(even) .k { padding-left: 14px; border-left: 1px dashed var(--line); }
+.unit-head .il:not(:nth-child(3n+1)) .k { padding-left: 14px; border-left: 1px dashed var(--line); }
 .stv { display: flex; gap: 4px; margin-bottom: 6px; }
 .stv button { flex: 1; border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 5px; padding: 3px 8px;
   font-weight: 600; font-size: 12px; cursor: pointer; }
 .stv button.on { background: var(--chip); color: var(--text); border-color: var(--accent); }
-.sp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 6px; }
-.sp { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; background: var(--chip); border-radius: 5px;
-  padding: 2px 8px; font-size: 13px; white-space: nowrap; }
-.sp span { color: var(--muted); }
-.sp b { font-variant-numeric: tabular-nums; font-size: 14px; }
-.sp[title] { cursor: help; }
 .cls-bar { margin: 14px 0 10px; }
-/* narrower middle (filter panel pinned): the same four columns, a bit tighter; the awakening goes
-   under the head only when there is really no room */
-@container (max-width: 1150px) { .summary.unit-head { grid-template-columns: 170px 400px auto minmax(0, 1fr); gap: 12px; }
-  .unit-head .awk-row { white-space: normal; }
-  .summary.unit-head .face { width: 170px; }
-  .unit-head .key { min-width: 92px; padding: 5px 10px; } .unit-head .key b { font-size: 19px; }
-  .unit-head .keys { padding-left: 12px; } .unit-head .awk { padding-left: 12px; }
-  .unit-head .info { grid-template-rows: auto auto repeat(3, 25px); column-gap: 8px; } .unit-head .il:nth-child(even) .k { padding-left: 8px; }
-  .h-collab { padding-left: 9px; }
-  .unit-head .awk-row { font-size: 12.5px; }
-  .unit-head .il .k { font-size: 12px; } .unit-head .il .v { font-size: 13px; gap: 4px; } .unit-head .il .v img { height: 22px; } }
-@container (max-width: 960px) { .summary.unit-head { grid-template-columns: 160px 340px auto minmax(160px, 1fr); gap: 10px; }
-  .unit-head .awk-row { white-space: normal; }
-  .summary.unit-head .face { width: 160px; }
-  .unit-head .key { min-width: 84px; } .unit-head .keys, .unit-head .awk { padding-left: 10px; }
-  .unit-head .awk-row { font-size: 12px; gap: 6px; } .unit-head .info { grid-template-rows: auto auto repeat(3, 22px); } }
-@container (max-width: 800px) { .summary.unit-head { grid-template-columns: 170px minmax(0, 1fr); }
-  .unit-head .keys { grid-column: 1 / -1; flex-direction: row; border-left: 0; padding-left: 0; }
-  .unit-head .awk { grid-column: 1 / -1; border-left: 0; padding-left: 0; border-top: 1px dashed var(--line); padding-top: 8px; } }
-@container (max-width: 760px) { .summary.unit-head { grid-template-columns: 150px minmax(0, 1fr); } .summary.unit-head .face { width: 150px; }
-  .unit-head .keys { grid-column: 1 / -1; flex-direction: row; border-left: 0; padding-left: 0; } }
+/* narrower middle: the awakening goes under the head (one block), then the face and the lines shrink */
+@container (max-width: 1140px) { .summary.unit-head { grid-template-columns: 190px minmax(0, 1fr); }
+  .unit-head .awk { grid-column: 1 / -1; border-left: 0; padding-left: 0; border-top: 1px dashed var(--line); padding-top: 8px;
+    flex-direction: row; flex-wrap: wrap; column-gap: 22px; }   /* the lines side by side: the head stays short */
+  .unit-head .awk-h, .unit-head .awk-tags { flex-basis: 100%; } }
+@container (max-width: 900px) { .summary.unit-head { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+  .summary.unit-head .face { width: 150px; }
+  .unit-head .info { grid-template-rows: auto auto repeat(3, minmax(25px, auto)); column-gap: 8px; --v1: 144px; --v2: 120px; --v3: 78px; }
+  .unit-head .il:not(:nth-child(3n+1)) .k { padding-left: 8px; }
+  .unit-head .il .k, .unit-head .il .v { min-height: 25px; } .unit-head .il .v.wrap { padding: 2px 0; } .unit-head .il .k { font-size: 12px; } .unit-head .il .v { font-size: 13px; gap: 4px; } .unit-head .il .v img { height: 22px; } }
+@container (max-width: 790px) { .summary.unit-head { grid-template-columns: 110px minmax(0, 1fr); gap: 10px; }
+  .summary.unit-head .face { width: 110px; }
+  .unit-head .info { --v1: 144px; --v2: 114px; --v3: 74px; } }
+@container (max-width: 740px) { .summary.unit-head { grid-template-columns: minmax(0, 1fr); } }
+/* narrowest: two pairs per row; Cost · Redeploy, then Block, on two more rows */
+@container (max-width: 600px) {
+  .unit-head .info { grid-template-columns: max-content minmax(0, 1.2fr) max-content minmax(0, 1fr); }
+  .unit-head .ilines .il:nth-child(-n+2) > * { grid-row: 3; } .unit-head .ilines .il:nth-child(n+4):nth-child(-n+5) > * { grid-row: 4; }
+  .unit-head .ilines .il:nth-child(n+7):nth-child(-n+8) > * { grid-row: 5; }
+  .unit-head .ilines .il:nth-child(3) > *, .unit-head .ilines .il:nth-child(6) > * { grid-row: 6; } .unit-head .ilines .il:nth-child(9) > * { grid-row: 7; }
+  .unit-head .ilines .il:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(7), :nth-child(9)) .k { grid-column: 1; padding-left: 0; border-left: 0; }
+  .unit-head .ilines .il:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(7), :nth-child(9)) .v { grid-column: 2; }
+  .unit-head .ilines .il:is(:nth-child(2), :nth-child(5), :nth-child(6), :nth-child(8)) .k { grid-column: 3; padding-left: 8px; border-left: 1px dashed var(--line); }
+  .unit-head .ilines .il:is(:nth-child(2), :nth-child(5), :nth-child(6), :nth-child(8)) .v { grid-column: 4; } }
 
 /* the title is the menu button: Units / Sub skills / Summons / Game formulas */
 .brand-wrap { position: relative; flex: none; }
@@ -868,11 +882,3 @@ mark.fxm { background: #ffe07a; color: #222; border-radius: 2px; padding: 0 1px;
 .awk-tags .tag { white-space: nowrap; flex: none; }
 .awk-tags .tag { font-size: 10px; padding: 0 6px; }
 .awk-more { font-size: 11px; color: var(--muted); padding: 0 4px; align-self: center; cursor: default; }
-/* the head's number boxes (owner, session 9: Block added): the same boxes, smaller, so three fit
-   the picture's height */
-.unit-head .keys { gap: 5px; }
-.unit-head .key { gap: 0; padding: 3px 10px; line-height: 1.2; min-width: 78px; }
-.unit-head .key b { align-self: flex-end; }   /* numbers right-aligned (owner) */
-.unit-head .key span { font-size: 11px; }
-.unit-head .key b { font-size: 17px; }
-.unit-head .key i { font-size: 12px; }

@@ -2,10 +2,10 @@
 /* Monmusu TD X wiki: one static page over data/wiki.json (py -m wikitool export) and img/ (images).
    The title is a menu: Units / Sub skills / Dungeons / Summons (later) / Game formulas; each mode
    has its own left list, middle page and filters (picks are kept per mode).
-   Units (session 5): left = search, sort and the unit's own data under the funnel button (rarity,
-   element, class -> weapon, attack, placement, movement, features, collab, race); middle = the unit
-   page; right = the Advanced filter: Skill (the skills' short tag list, lookups.skillTags) | Buff
-   and Attack (race trait + personal weapon, lookups.traitTags: records with scope / when / who).
+   Units: left = search, sort and the unit's own data under the funnel button (rarity, element,
+   class -> weapon, attack, placement, movement, features, collab, race); middle = the unit page;
+   right = the Advanced filter (session 9, FILTERS.md): search + Source, tabs Allies | Attack | ETC
+   over one record per effect of every skill, race trait, weapon and awakening node (unit.fx).
    Sub skills keep What / Condition / Who ("works for"). Inside a group OR, across groups AND;
    options that would leave nothing are greyed. Each side's clear button clears only its side. */
 
@@ -19,7 +19,7 @@ const store = {
 let W = null;                       // wiki.json
 const state = { lang: store.get("lang", "en"), picksBy: {}, q: "", sel: null, skin: null,
   mode: "units", ssel: null,                     // current mode, selected sub skill
-  tier: 5, lv: 5, tab: "details",              // class tier and skill level sliders, unit page tab
+  tier: 5, lv: 5, slv: {}, tab: "details",              // class tier and skill level sliders, unit page tab
   fsec: store.get("fsec", "unit"), page: null,   // filter tab; page = "formulas" or null
   showEtc: store.get("showEtc", false),          // sub skill list: show the Etc. tab (owner: off)
   sort: store.get("sort", "release"), sortDir: store.get("sortDir", "desc") };   // unit list order
@@ -39,13 +39,10 @@ const UI = {
     tg_uptime: "Uptime", tg_skillact: "Skill & ACT", tg_combat: "Combat", tg_blockmove: "Blocking & moving",
     tg_situation: "Situation", tg_enemy: "Enemy", tg_team: "Team", tg_drawback: "Drawback",
     h_target: "Target", sc_self: "Self", sc_allies: "Allies",
-    whoSec: "Who", whatSec: "What", weaponSrc: "Weapon", ws_include: "Include", ws_exclude: "Exclude", ws_only: "Only",
-    wsTip_include: "Race trait and personal weapon", wsTip_exclude: "Race trait only (as without the personal weapon)", wsTip_only: "Personal weapon only", trait1Sec: "Buff", trait2Sec: "Attack",
-    tb_t_atk: "ATK buff", tb_t_def: "DEF buff", tb_t_surv: "Survival", tb_t_heal: "Heal", tb_t_trans: "Attack transform",
-    tb_t_dmg: "Deal damage", tb_t_debuff: "Debuff", tb_t_ail: "Ailment", tb_t_special: "Special",
-    w_always: "Always", w_trig: "Triggered", wTip_always: "Always on while deployed / in the party", wTip_trig: "Needs a trigger: during skill, on hit, kills, blocking, stacks", when: "When", who: "Who", whoNone: "All allies", whoNoneTip: "Buffs every ally, not only one element / race / class", skillSec: "Skill", traitSec: "Trait",
-    skillSecTip: "Active skill 1 / 2", trait1SecTip: "Race trait / weapon: stat buffs, survival, heal", trait2SecTip: "Race trait / weapon: attack changes, damage, debuffs, ailments, special",
-    sg_s_attack: "Attack", sg_s_ailment: "Ailment", sg_s_control: "Control", sg_s_support: "Support", sg_s_self: "Self", sg_s_utility: "Utility", sg_s_type: "Skill type", condSec: "Condition", pctTip: "% based", flatTip: "Fixed amount",
+    whoSec: "Who", whatSec: "What", 
+    
+    who: "Who", whoNone: "All allies", whoNoneTip: "Buffs every ally, not only one element / race / class", traitSec: "Trait",
+    condSec: "Condition", pctTip: "% based", flatTip: "Fixed amount",
     wk_only: "Required", wk_bonus: "Bonus", wk_not: "Not for", wk_allies: "Target",
     subDetailSec: "Sub skill details", h_classWeapon: "Class · Weapon", h_elementRace: "Element · Race",
     h_condition: "Applies as",
@@ -79,20 +76,18 @@ const UI = {
     arTip_b1: "low", arTip_b30: "medium", arTip_b50: "large", arTip_b80: "very large", arTip_b100: "fills the gauge in one hit",
     ar_c1: "≤20%", ar_c21: "21–50%", ar_c51: "51–99%", ar_c100: "100%",
     ps_s120: "Poison", ps_s190: "Deadly", ps_s280: "Super", psTip: "damage every 3 s", psHead: "strength", psDmg: "dmg", buildUp: "build-up", chance: "chance",
-    fxSkill: "Skill", fxTileTo: "Tile becomes", fxWeatherTo: "Weather becomes", trueDmg: "true",
-    fxBuffSec: "Buff", fxDebuffSec: "Debuff", fxWhenSec: "When", fxBuffSecTip: "Effects on allies and on herself: buffs, heals, protection, support",
-    fxDebuffSecTip: "Effects on enemies: attack type, damage, debuffs, ailments", fxWhenSecTip: "When it works, from where, drawbacks, ailment chance",
+    fxTileTo: "Tile becomes", fxWeatherTo: "Weather becomes", trueDmg: "true",
+    
     fxSearch: "Search skill / trait / weapon text…", fxSource: "Source", fs_skill: "Active skill", fs_trait: "Trait", fs_weapon: "Weapon",
     fsTip_skill: "Active skill 1 / 2", fsTip_trait: "Race trait", fsTip_weapon: "Personal weapon",
     fs_awaken: "Awakening", fsTip_awaken: "Awakening nodes (not the flat stat ones: those are in Stats)",
     headTrait: "race trait", headWeapon: "personal weapon", headAwaken: "awakening", redeployMax: "only the biggest cut counts",
     flyTrait: "Flies (race trait)",
-    fxChance: "Ailment chance", ch_low: "Low", ch_mid: "Medium", ch_high: "High", ch_sure: "100%",
     fx_t_atk: "ATK buff", fx_t_def: "DEF buff", fx_t_surv: "Survival", fx_t_heal: "Heal", fx_t_special: "Utility",
     fx_t_trans: "Attack type", fx_t_dmg: "Damage", fx_t_debuff: "Debuff", fx_t_ail: "Ailment",
     aspd: "Attack speed", weaponType: "Weapon", type: "Type", stv_max: "Lv. Max", stv_lv1: "Lv. 1",
     stvTipMax: "Class 5 ({cls}), Lv {max}, all awakening; no equipment, sub skills or personal weapon",
-    stvTip1: "Class 1 ({cls}), Lv 1, no awakening", flyBlockTip: "Flying units can't block", afterAwaken: "after awakening", sortBy: "Sort", sort_release: "Release", sort_name: "Name", sort_class: "Class", sortAsc: "Ascending", sortDesc: "Descending", costShort: "Cost", moveShort: "Move",
+    stvTip1: "Class 1 ({cls}), Lv 1, no awakening", flyBlockTip: "Flying units can't block", hiddenTip: "The value in the game's data (the text only says it in words)", afterAwaken: "after awakening", sortBy: "Sort", sort_release: "Release", sort_name: "Name", sort_class: "Class", sortAsc: "Ascending", sortDesc: "Descending", costShort: "Cost", moveShort: "Move",
     units: "Units", subskills: "Sub skills", summons: "Summons", soon: "later", subSec: "Sub skill",
     ultimate: "Ultimate", shop: "Sold in the shop", fromRecipe: "Made from a recipe",
     catAttack: "Attack", catDefense: "Defense", catSupport: "Support", family: "Family",
@@ -136,13 +131,10 @@ const UI = {
     tg_uptime: "持続", tg_skillact: "スキル・ACT", tg_combat: "戦闘", tg_blockmove: "ブロック・移動",
     tg_situation: "状況", tg_enemy: "敵", tg_team: "編成", tg_drawback: "デメリット",
     h_target: "対象", sc_self: "自身", sc_allies: "味方",
-    whoSec: "対象", whatSec: "効果", weaponSrc: "専用武器", ws_include: "含む", ws_exclude: "除く", ws_only: "のみ",
-    wsTip_include: "種族特性と専用武器", wsTip_exclude: "種族特性のみ", wsTip_only: "専用武器のみ", trait1Sec: "強化", trait2Sec: "攻撃",
-    tb_t_atk: "攻撃強化", tb_t_def: "防御強化", tb_t_surv: "生存", tb_t_heal: "回復", tb_t_trans: "攻撃変化",
-    tb_t_dmg: "ダメージ", tb_t_debuff: "デバフ", tb_t_ail: "状態異常", tb_t_special: "特殊",
-    w_always: "常時", w_trig: "条件付き", wTip_always: "出撃中・編成中は常に", wTip_trig: "スキル中・攻撃時・撃破・ブロック中など", when: "条件", who: "対象", whoNone: "味方全員", whoNoneTip: "属性・種族・クラスの限定なしで味方を強化", skillSec: "スキル", traitSec: "特性",
-    skillSecTip: "スキル1・2", trait1SecTip: "種族特性・専用武器：強化・生存・回復", trait2SecTip: "種族特性・専用武器：攻撃変化・ダメージ・デバフ・状態異常・特殊",
-    sg_s_attack: "攻撃", sg_s_ailment: "状態異常", sg_s_control: "妨害", sg_s_support: "支援", sg_s_self: "自身", sg_s_utility: "その他", sg_s_type: "スキル種類", condSec: "条件", pctTip: "割合", flatTip: "固定値",
+    whoSec: "対象", whatSec: "効果", 
+    
+    who: "対象", whoNone: "味方全員", whoNoneTip: "属性・種族・クラスの限定なしで味方を強化", traitSec: "特性",
+    condSec: "条件", pctTip: "割合", flatTip: "固定値",
     wk_only: "必須", wk_bonus: "追加効果", wk_not: "対象外", wk_allies: "対象",
     subDetailSec: "サブスキル詳細", h_classWeapon: "クラス · 武器", h_elementRace: "属性 · 種族",
     h_condition: "適用",
@@ -166,7 +158,7 @@ const UI = {
     attack: "攻撃",
     aspd: "攻撃速度", weaponType: "武器種", type: "タイプ", stv_max: "Lv.最大", stv_lv1: "Lv.1",
     stvTipMax: "クラス5（{cls}）、Lv{max}、潜在覚醒すべて。装備・サブスキル・専用武器なし",
-    stvTip1: "クラス1（{cls}）、Lv1、潜在覚醒なし", flyBlockTip: "飛行ユニットはブロックできない", afterAwaken: "潜在覚醒後", sortBy: "並び替え", sort_release: "実装順", sort_name: "名前", sort_class: "クラス", sortAsc: "昇順", sortDesc: "降順", costShort: "コスト", moveShort: "移動",
+    stvTip1: "クラス1（{cls}）、Lv1、潜在覚醒なし", flyBlockTip: "飛行ユニットはブロックできない", hiddenTip: "ゲームデータ上の値（テキストは言葉のみ）", afterAwaken: "潜在覚醒後", sortBy: "並び替え", sort_release: "実装順", sort_name: "名前", sort_class: "クラス", sortAsc: "昇順", sortDesc: "降順", costShort: "コスト", moveShort: "移動",
     units: "ユニット", subskills: "サブスキル", summons: "召喚", soon: "準備中", subSec: "サブスキル",
     ultimate: "究極", shop: "ショップで購入可", fromRecipe: "レシピで作成", catAttack: "攻撃",
     catDefense: "防御", catSupport: "支援", family: "系統", recipe: "素材", usedIn: "作成先",
@@ -235,7 +227,6 @@ function tagMap(list) {
   return m;
 }
 /* every tag id of a tag map: the effects and their conditions (for the filter counts) */
-function parseRec(r) { const [id, scope = "", when = "", who = ""] = r.split("|"); return { id, scope, when, who: who ? who.split(",") : [] }; }
 function tagIds(m) {
   const out = new Set(m.keys());
   for (const list of m.values()) for (const e of list) for (const c of e.conds) out.add(c);
@@ -290,7 +281,6 @@ function prep(u) {
   u._weapon = String(fam.weapon);
   u._rar = W.lookups.rarity[u.rarity]?.code || "Unknown";
   u._stags = new Set(u.skills.flatMap(sid => W.skills[sid]?.stags || []));   // Active skill tags
-  u._trecs = Object.entries(u.traitTags || {}).flatMap(([src, list]) => list.map(r => ({ ...parseRec(r), src })));   // Trait tab records
   u._fx = [...u.skills.flatMap(sid => (W.skills[sid]?.fx || []).map(r => parseFx(r, "skill"))),   // Advanced filter records
     ...(u.fx?.race || []).map(r => parseFx(r, "trait")), ...(u.fx?.weapon || []).map(r => parseFx(r, "weapon")),
     ...(u.fx?.awaken || []).map(r => parseFx(r, "awaken"))];
@@ -319,11 +309,7 @@ const HITS = ["Physical", "Magic", "Ignore", "Heal"];          // cJobData.hitTy
 const PLACES = ["Near", "Far", "All"];                         // cJobData.summonType
 const MOVES = ["Ground", "Fly", "Warp", "Rush"];               // Ground = everyone who doesn't fly
 const textOpt = (v, text, tip) => ({ v, text, tip, html: `<span class="kchip">${esc(text)}</span>` });
-/* one drop-down per tag group: WHAT groups in the What tab, CONDITION groups in Condition */
-/* the unit Trait tabs (owner, session 5): race trait + personal weapon, effect first (lookups
-   .traitTags, unit.traitTags records "tag|scope|when|who"). Trait 1 blocks take the When
-   (always / triggered), Target (self / allies) and Who (element / race / class) picks, which
-   must hold for the same record; Trait 2 blocks are plain lists. */
+/* Who an ally buff is for: an element (el:), a main class (cl:), a race trait (tr:) or everyone */
 function whoLabel(v) {
   if (v === "none") return ui("whoNone");
   const [k, n] = v.split(":");
@@ -331,69 +317,12 @@ function whoLabel(v) {
   if (k === "cl") { const f = classFamiliesOf(String(+n + 9))[0]; return f ? term("classes", W.classes[f].name) : n; }
   return term("traits", W.lookups.traits[n]) || n;
 }
-const T1 = () => new Set(W.lookups.traitTabs?.trait1 || []);
-let TBLOCK = {};                                   // trait tag id -> block
-const WSRC = ["twsrc1", "twsrc2"];                // the Weapon row, mirrored in both Trait tabs
-function srcOK(r) {
-  const p = picks("twsrc1");
-  return p.has("exclude") ? r.src !== "weapon" : p.has("only") ? r.src === "weapon" : true;
-}
-function recOK(r) {                                // a record meets the Weapon row and the Trait 1 When / Target / Who picks
-  if (!srcOK(r)) return false;
-  if (!T1().has(TBLOCK[r.id])) return true;
-  const w = picks("twhen"), sc = picks("tscope"), who = picks("twho");
-  if (w.size && !w.has(r.when)) return false;
-  if (sc.size && !sc.has(r.scope)) return false;
-  if (who.size && ![...who].some(v => v === "none" ? r.scope === "allies" && !r.who.length : r.who.includes(v))) return false;
-  return true;
-}
-const t1Picked = () => [...T1()].some(b => picks(b).size);
-const t1Any = u => t1Picked() || u._trecs.some(r => T1().has(TBLOCK[r.id]) && recOK(r));
-function traitTabDefs() {
-  const L = W.lookups, defs = [], cnt = {}, whoCnt = {};
-  TBLOCK = Object.fromEntries(L.traitTags.map(t => [t.id, t.cat]));
-  for (const u of W.units) {
-    for (const id of new Set(u._trecs.map(r => r.id))) cnt[id] = (cnt[id] || 0) + 1;
-    const ws = new Set(u._trecs.filter(r => T1().has(TBLOCK[r.id])).flatMap(r => r.who.length ? r.who : r.scope === "allies" ? ["none"] : []));
-    for (const v of ws) whoCnt[v] = (whoCnt[v] || 0) + 1;
-  }
-  for (const [tab, blocks] of Object.entries(L.traitTabs)) {
-    for (const b of blocks) {
-      const opts = L.traitTags.filter(t => t.cat === b && cnt[t.id]).map(t => ({ v: t.id, label: isJa() ? t.ja : t.en, chip: `ttag ${b}`, cnt: cnt[t.id] }));
-      if (opts.length) defs.push({ id: b, sec: tab, dropdown: true, cls: b, label: ui("tb_" + b), opts,
-        match: (u, p) => u._trecs.some(r => p.has(r.id) && recOK(r)) });
-    }
-    const weaponRow = { id: tab === "trait1" ? "twsrc1" : "twsrc2", sec: tab, row: `ws_${tab}`, single: true, rowLabel: "weaponSrc",
-      match: (u, p) => p.has("only") ? u._trecs.some(r => r.src === "weapon") : true,
-      opts: ["include", "exclude", "only"].map(v => textOpt(v, ui("ws_" + v), ui("wsTip_" + v))) };
-    if (tab !== "trait1") { defs.push(weaponRow); continue; }   // the Weapon row: bottom of the tab (owner)
-    // Who (owner): row 1 element icons, row 2 the 7 main classes (icons; none of the effects names a
-    // subclass), then the races in two columns, then None
-    const tip = v => `${whoLabel(v)} (${whoCnt[v] || 0})`;
-    const whoOpts = [
-      ...Object.keys(L.elements).filter(n => whoCnt[`el:${n}`]).map(n => ({ v: `el:${n}`, kind: "el", label: whoLabel(`el:${n}`), tip: tip(`el:${n}`),
-        cnt: whoCnt[`el:${n}`], html: `<img src="img/element/${n}.webp" alt="">` })),
-      ...[2, 3, 4, 5, 6, 7, 8].map(n => ({ v: `cl:${n}`, kind: "cl", label: whoLabel(`cl:${n}`), tip: tip(`cl:${n}`),
-        cnt: whoCnt[`cl:${n}`] || 0, html: `<img class="cls-ic" src="img/class/${classFamiliesOf(String(n + 9))[0]}.webp" alt="">` })),
-      ...Object.keys(L.traits).map(n => `tr:${n}`).filter(v => whoCnt[v]).sort((a, b) => whoLabel(a).localeCompare(whoLabel(b)))
-        .map(v => ({ v, kind: "tr", label: whoLabel(v), chip: "who", cnt: whoCnt[v] })),
-      ...(whoCnt.none ? [{ v: "none", kind: "all", label: whoLabel("none"), tip: ui("whoNoneTip"), chip: "who", cnt: whoCnt.none }] : []),
-    ];
-    defs.push({ id: "twho", sec: tab, dropdown: true, layout: "who", cls: "who", label: ui("who"), opts: whoOpts, match: t1Any });
-    defs.push({ id: "twhen", sec: tab, head: ui("when"), match: t1Any,
-      opts: ["always", "trig"].map(v => textOpt(v, ui("w_" + v), ui("wTip_" + v))) });
-    defs.push({ id: "tscope", sec: tab, head: ui("h_target"), match: t1Any,
-      opts: ["self", "allies"].map(v => textOpt(v, ui("sc_" + v), ui(v === "self" ? "scopeSelf" : "scopeAllies"))) });
-    defs.push(weaponRow);
-  }
-  return defs;
-}
-/* ---- the unit filter panel (session 9): two panels, a vertical button each (owner):
-   Advanced filter = Allies | Enemies | Utility (lookups.fxTabs), Ailments = one row per ailment,
-   grouped by how it lands (lookups.fxAilments: gauge / chance / always; site Game formulas).
-   Every effect of a skill, race trait or weapon is one record (unit._fx: src, id, blk, scope, who,
-   build / chance / strength; tags.effect_records); an effect pick needs one record that also meets
-   the Source row (both panels) and, for the Allies blocks, Target and Who. */
+/* ---- the unit filter (session 9, FILTERS.md "Unit filter"): tabs Allies | Attack | ETC, one
+   drop-down per block (lookups.fxTabs / fxBlocks), Ailment + Value in Attack (lookups.fxAilments:
+   gauge / chance / always; site Game formulas). Every effect of a skill, race trait, weapon or
+   awakening node is one record (unit._fx: src, id, blk, scope, who, build / chance / strength /
+   element / weather / field; tags.effect_records); an effect pick needs one record that also meets
+   the Source row and, for the Allies blocks, Target and Who. */
 const FX_SRC = ["skill", "trait", "weapon", "awaken"];
 /* ailment value ranges: Stun build-up (the gauge fills at 100: 100 = one hit), the others chance % */
 const AIL_RANGES = {
@@ -669,7 +598,6 @@ function groupDefs() {
         chip: "trait", cnt: traitCount[t] })).sort(byLabel) },
   ];
   // the Advanced filter (demo, session 9): Buff | Debuff | When over every effect record
-  // (the session 5 tabs Skill | Buff | Attack: skillGroups / traitTabDefs, not shown)
   defs.push(...fxTabDefs());
   return defs;
 }
@@ -777,7 +705,7 @@ function groupHTML(g) {
 function buildFilters() {
   GROUPS = groupDefs();
   const box = $("#groups");
-  const secs = { skill: "", trait1: "", trait2: "", allies: "", attack: "", fxskill: "", top: "", unit: "", who: "", what: "", cond: "", list: "" };
+  const secs = { allies: "", attack: "", fxskill: "", top: "", unit: "", who: "", what: "", cond: "", list: "" };
   const rows = {};
   for (const g of GROUPS) {
     if (g.row) {
@@ -794,7 +722,7 @@ function buildFilters() {
     for (const [r, blocks] of Object.entries(rows))
       secs[k] = secs[k].replace(`@@row-${r}@@`, `<div class="fgroup frow">${blocks.join('<span class="fsep"></span>')}</div>`);
   // sub skills have no own tab (owner, session 4): the list tabs and the rarity order do that
-  const tabs = [["skill", "skillSec"], ["trait1", "trait1Sec"], ["trait2", "trait2Sec"], ["allies", "fxAlliesSec"], ["attack", "fxAttackSec"],
+  const tabs = [["allies", "fxAlliesSec"], ["attack", "fxAttackSec"],
     ["fxskill", "fxSkillSec"], ["unit", "unitSec"], ["who", "whoSec"],
     ["what", state.mode === "units" ? "traitSec" : "whatSec"], ["cond", "condSec"]]
     .filter(([k]) => GROUPS.some(g => g.sec === k));
@@ -884,11 +812,6 @@ $(".filter-body").addEventListener("scroll", () => {
 });
 
 function toggle(gid, v) {
-  if (WSRC.includes(gid)) {
-    const on = v !== "include" && !picks("twsrc1").has(v);
-    for (const g of WSRC) { picks(g).clear(); if (on) picks(g).add(v); }
-    updateFilterUI(); applyFilters(); return;
-  }
   const p = picks(gid);
   // Value (tied to the ailment): one range and one strength at a time (owner)
   if (gid === "failv" && !p.has(v)) { const s = v.split("|")[1][0] === "s";
@@ -949,7 +872,7 @@ function updateFilterUI() {
     });
     // a drop-down whose every option would leave nothing: greyed, can't open
     if (g.dropdown) {
-      const dead = !p.size && g.opts.length && g.opts.every(o => fc.get(`${g.id}${o.v}`) === 0);
+      const dead = !p.size && g.opts.length && g.opts.every(o => fc.get(`${g.id}\u0001${o.v}`) === 0);
       el.classList.toggle("empty", dead);
       el.querySelector(".dd-btn").disabled = dead;
       if (dead) el.querySelector(".dd-list").hidden = true;
@@ -959,8 +882,6 @@ function updateFilterUI() {
           return `<span class="ddpick tag ${o?.chip || ""}" data-v="${esc(v)}">${esc(o?.label || v)}<span class="x">×</span></span>`; }).join("")
       : `<span class="dd-none">---</span>`;
   }
-  // the Weapon row: Include is lit while nothing else is picked
-  for (const g of WSRC) $(`#groups [data-group="${g}"] [data-v="include"]`)?.classList.toggle("on", !picks(g).size);
   // subclasses: only those of the picked main classes; the row hides when none is picked
   const mains = picks("class");
   const sub = document.querySelector('#subFilter [data-group="weapon"].subgroup, #groups [data-group="weapon"].subgroup');
@@ -968,7 +889,7 @@ function updateFilterUI() {
     sub.hidden = !mains.size;
     sub.querySelectorAll(".opt").forEach(o => o.hidden = !mains.has(o.dataset.base));
   }
-  for (const sec of ["skill", "trait1", "trait2", "allies", "attack", "fxskill", "unit", "who", "what", "cond"]) {
+  for (const sec of ["allies", "attack", "fxskill", "unit", "who", "what", "cond"]) {
     const n = GROUPS.filter(g => g.sec === sec).reduce((a, g) => a + picks(g.id).size, 0);
     const b = $(`#groups .ftabs button[data-sec="${sec}"] b`);
     if (b) b.textContent = n || "";
@@ -1037,10 +958,15 @@ function fmtVar(v, L) {
   if (v && typeof v === "object" && v.of) return `${(STAT[v.of] || [v.of, v.of])[isJa() ? 1 : 0]}×${fmtVar(v.v, L)}`;
   return num(v);
 }
-function rich(s, vars, L) {
-  let h = esc(s);
+/* the values into the text: \u0005value\u0006 (rich() makes them bold) */
+function fillVars(s, vars, L) {
   if (vars) for (const k of Object.keys(vars).sort((a, b) => b.length - a.length))
-    h = h.split(esc(k)).join(`<b class="v">${esc(fmtVar(vars[k], L))}</b>`);
+    s = s.split(k).join(`\u0005${fmtVar(vars[k], L)}\u0006`);
+  return s;
+}
+function rich(s, vars, L) {
+  let h = esc(fillVars(s, vars, L)).replace(/\u0005([^\u0006]*)\u0006/g, '<b class="v">$1</b>')
+    .replace(/\u0001([^\u0002]*)\u0002/g, '<span class="df-new">$1</span>').replace(/\u0003([^\u0004]*)\u0004/g, '<span class="df-num">$1</span>');
   h = h.replace(/&lt;aw&gt;([\s\S]*?)&lt;\/aw&gt;/g, `<span class="aw" title="${esc(ui("awTip"))}">$1</span>`)
        .replace(/&lt;naw&gt;([\s\S]*?)&lt;\/naw&gt;/g, `<span class="naw" title="${esc(ui("nawTip"))}">$1</span>`)
        .replace(/&lt;t=(.*?)&gt;([\s\S]*?)&lt;\/t&gt;/g, (_, w, shown) => {
@@ -1071,17 +997,6 @@ function tagChips(tags) {
     const marks = ["pct", "flat"].filter(m => c.marks.has(m)).map(m => `<span class="mk" title="${esc(ui(m + "Tip"))}">${m === "pct" ? "%" : "+"}</span>`).join("");
     return `<button class="tag ${c.cat}" data-tag="${c.id}" data-cat="${c.cat}">${esc(tagName(c.id))}${marks}${c.scope ? `<small>${esc(ui(c.scope))}</small>` : ""}</button>`;
   }).join("")}</div>`;
-}
-/* a race trait's / weapon's Trait tags; a chip toggles that filter (scope and Who shown small) */
-function traitChips(recs) {
-  if (!recs || !recs.length) return "";
-  const byId = Object.fromEntries(W.lookups.traitTags.map(t => [t.id, t]));
-  const order = W.lookups.traitTags.map(t => t.id), seen = new Set();
-  return `<div class="tags">${recs.map(parseRec).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map(r => {
-    const t = byId[r.id], k = `${r.id}|${r.scope}|${r.who}`;
-    if (!t || seen.has(k)) return ""; seen.add(k);
-    const extra = (r.scope ? ` <small>${esc(ui(r.scope))}</small>` : "") + (r.who.length ? ` <small>${esc(r.who.map(whoLabel).join(", "))}</small>` : "");
-    return `<button class="tag ttag ${t.cat}" data-tag="${r.id}" data-cat="${t.cat}">${esc(isJa() ? t.ja : t.en)}${extra}</button>`; }).join("")}</div>`;
 }
 /* Advanced filter records as chips (demo): effect name, then target / Who / chance small;
    a chip toggles that filter */
@@ -1114,14 +1029,6 @@ function fieldText(id) {
   const t = n => `${+(n / 30).toFixed(2)}${ui("sec")}`;
   return [dmg && `${dmg} / ${t(f.every)}${f.hit === 3 ? ` ${ui("trueDmg")}` : ""}`, f.lasts > 0 ? t(f.lasts) : ""].filter(Boolean).join(" · ");
 }
-/* a skill's Active skill tags (the filter's short list); a chip toggles that filter */
-function skillChips(ids) {
-  if (!ids || !ids.length) return "";
-  const byId = Object.fromEntries(W.lookups.skillTags.map(t => [t.id, t]));
-  const order = W.lookups.skillTags.map(t => t.id);
-  return `<div class="tags">${[...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(id => { const t = byId[id];
-    return t ? `<button class="tag stag ${t.cat}" data-tag="${id}" data-cat="${t.cat}">${esc(isJa() ? t.ja : t.en)}</button>` : ""; }).join("")}</div>`;
-}
 /* sub skill: who it works for, one line per kind; a chip toggles that filter */
 function worksHTML(x) {
   const L = W.lookups, kinds = W_KINDS.filter(k => x._for[k]);
@@ -1152,18 +1059,40 @@ const MAX_LV = 5, TIERS = 5;
 function skillCard(sid, n) {
   const s = W.skills[sid];
   if (!s) return "";
-  const L = { lv: Math.min(state.lv, s.maxLevel), max: s.maxLevel };
+  const L = { lv: Math.min(state.slv[sid] ?? state.lv, s.maxLevel), max: s.maxLevel };
   const meta = [];
   if (s.cooldown) meta.push(`${ui("cd")} <b>${sec(fmtVar(s.cooldown, L))}</b>`);
   if (s.duration && fmtVar(s.duration, L) !== "0") meta.push(`${ui("dur")} <b>${sec(fmtVar(s.duration, L))}</b>`);
   if (s.cost) meta.push(`${ui("cost")} <b>${fmtVar(s.cost, L)}</b>`);
   const oc = s.oc ? `<div class="sub-block head"><span class="kind oc">OC</span><span class="meta" style="margin-left:0">${ui("cd")} <b>${sec(fmtVar(s.oc.cooldown, L))}</b></span></div>` : "";
-  return `<div class="card"><div class="head"><span class="kind k${n}">${ui("skill")} ${n}</span>
-    <span class="name">${esc(tx(`skill.${sid}.name`))}</span><span class="meta">${meta.map(m => `<span>${m}</span>`).join("")}</span></div>
+  return `<div class="card" data-skill="${sid}" data-n="${n}"><div class="head"><span class="kind k${n}">${ui("skill")} ${n}</span>
+    <span class="name">${esc(tx(`skill.${sid}.name`))}</span><span class="meta">${meta.map(m => `<span>${m}</span>`).join("")}</span>${lvControl(L)}</div>
     <div class="desc">${rich(tx(`skill.${sid}.text`), s.vars, L)}</div>${oc}${fxChips(s.fx, "skill")}</div>`;
 }
 function skillsHTML(u) { return u.skills.map((sid, i) => skillCard(sid, i + 1)).join(""); }
-function lvLabel() { return `${ui("lv")} ${state.lv}`; }
+/* skill level in the skill card's head (owner, session 10): Lv n − bar +, one per skill */
+function lvControl(L) {
+  if (L.max < 2) return "";
+  return `<span class="lvctl"><span class="lv-n">${ui("lv")} ${L.lv}</span><button data-lvstep="-1"${L.lv <= 1 ? " disabled" : ""} aria-label="level down">−</button><input
+    type="range" min="1" max="${L.max}" step="1" value="${L.lv}" aria-label="${ui("lv")}"><button data-lvstep="1"${L.lv >= L.max ? " disabled" : ""} aria-label="level up">+</button></span>`;
+}
+function setSkillLv(card, lv) {
+  const sid = card.dataset.skill, max = W.skills[sid].maxLevel;
+  state.slv[sid] = lv = Math.max(1, Math.min(max, lv));
+  // the new card's text, numbers and chips; the level bar itself stays (a drag goes on)
+  const tmp = document.createElement("div");
+  tmp.innerHTML = skillCard(sid, +card.dataset.n);
+  const nc = tmp.firstElementChild, head = card.querySelector(".head"), nhead = nc.querySelector(".head");
+  head.querySelector(".meta").replaceWith(nhead.querySelector(".meta"));
+  const ctl = head.querySelector(".lvctl"), nctl = nhead.querySelector(".lvctl");
+  ctl.querySelector(".lv-n").textContent = nctl.querySelector(".lv-n").textContent;
+  const nb = nctl.querySelectorAll("button");
+  ctl.querySelectorAll("button").forEach((b, i) => b.disabled = nb[i].disabled);
+  ctl.querySelector("input").value = lv;
+  [...card.children].forEach(c => c !== head && c.remove());
+  [...nc.children].forEach(c => c !== nhead && card.append(c));
+  markTagChips();
+}
 function raceCard(u) {
   const key = `race:${u.race}`, a = W.abilities[key] || {};
   const bonus = tx(`race.${u.race}.bonus`);
@@ -1193,9 +1122,11 @@ function weaponCard(u) {
     <span class="meta"><span><b>${u.weapon.levels}</b> ${ui("levels")}</span></span></div>
     <div class="desc">${rich(tx(`weapon.${u.id}.text`), a.vars)}</div>${fxChips(u.fx?.weapon, "weapon")}</div></div>`;
 }
-/* class trait lines: a line that goes on ("…し、" / "…, and") joins the next, the rest stay lines */
-function joinLines(lines) {
+/* class trait lines: a line that goes on ("…し、" / "…, and") joins the next, the rest stay lines;
+   tails[i] goes after line i (after the join is decided) */
+function joinLines(lines, tails = []) {
   return lines.reduce((out, l, i) => {
+    l += tails[i] || "";
     if (!i) return l;
     const prev = lines[i - 1].trim();
     return out + (/[、,;:]$|\band$/.test(prev) ? (isJa() ? "" : " ") : "\n") + l;
@@ -1206,16 +1137,109 @@ function tierOf(u) { const t = u._fam.tiers; return t[Math.min(state.tier, t.len
 const blockOf = (u, t) => u.move === "Fly" ? 0 : t.block;
 const targetsTxt = n => n < 0 ? "—" : n;                  // -1 = no normal attack (Supporter)
 function classCard(u) {
-  const t = tierOf(u);
-  const lines = [];
-  for (let i = 1; W.text[`class.${t.id}.${i}`]; i++) lines.push(tx(`class.${t.id}.${i}`));
-  const stats = [`<span${u.move === "Fly" ? ` title="${esc(ui("flyBlockTip"))}"` : ""}>${ui("block")} <b>${blockOf(u, t)}</b></span>`,
-    `<span>${ui("targets")} <b>${targetsTxt(t.targets)}</b></span>`];
-  if (t.range) stats.push(`<span>${ui("range")} <b>${t.range}</b></span>`);
+  const t = tierOf(u), prev = t === u._fam.tiers[0] ? null : u._fam.tiers[0];   // always against tier 1 (owner)
+  // a value no number in the text shows (build: tier.hidden, line -> ["-50%"]) goes after its line,
+  // as \u0007a\u0007 … until rich() has run (letters: the diff takes digits for numbers)
+  const hv = [];
+  const linesOf = (x, mark) => {
+    const lines = [], tails = [];
+    for (let i = 1; W.text[`class.${x.id}.${i}`]; i++) {
+      lines.push(tx(`class.${x.id}.${i}`));
+      const h = mark && x.hidden?.[i];
+      if (h) { tails[i - 1] = ` \u0007${String.fromCharCode(97 + hv.length)}\u0007`; hv.push(h); }
+    }
+    return joinLines(lines, tails).split("\n").map(l => fillVars(l, x.vars));
+  };
+  const cur = linesOf(t, true), before = prev && linesOf(prev);
+  // what changed from tier 1 (owner, session 10): new wording red, changed numbers yellow
+  const text = (before ? cur.map(l => diffLine(l, before.join("\n"))) : cur).join("\n");
+  const val = (v, pv) => `<b${prev && String(v) !== String(pv) ? ' class="df-num"' : ""}>${v}</b>`;
+  const stats = [`<span${u.move === "Fly" ? ` title="${esc(ui("flyBlockTip"))}"` : ""}>${ui("block")} ${val(blockOf(u, t), prev && blockOf(u, prev))}</span>`,
+    `<span>${ui("targets")} ${val(targetsTxt(t.targets), prev && targetsTxt(prev.targets))}</span>`];
+  if (t.range) stats.push(`<span>${ui("range")} ${val(t.range, prev?.range)}</span>`);
   return `<div class="card"><div class="head"><span class="kind cls">${ui("clsTrait")}</span>
     <span class="tierno">${t.tier}</span><span class="name">${esc(term("classes", t.name))}</span>
     <span class="meta">${stats.join("")}</span></div>
-    <div class="desc">${rich(joinLines(lines), t.vars)}</div></div>`;
+    <div class="desc">${rich(text).replace(/\u0007([a-z])\u0007/g, (_, c) =>
+      `<span class="hv" title="${esc(ui("hiddenTip"))}">${hv[c.charCodeAt(0) - 97].map(esc).join(" ")}</span>`)}</div></div>`;
+}
+/* one line against tier 1's text (owner, session 10): the line splits into clauses (at
+   "; ", ", and", ", but", "、" …); a clause tier 1 has (numbers aside, any case) stays, with
+   the numbers that changed yellow. A clause it doesn't have splits by its numbers: the text pieces
+   tier 1 doesn't have are red; a number between two old pieces is yellow when it changed,
+   one next to new text is red (kept when the text after it shows the same number before). A new
+   text piece at least half like one of tier 1's (words in common, in order): only the
+   words that differ are red (Small → Medium: only "Medium").
+   Marks: \u0001 red \u0002, \u0003 yellow \u0004 (rich() turns them into spans) */
+const DIFF_SPLIT = /( ?\u0007[a-z]\u0007|;\s*|、|。|,\s+(?:and\s+|but\s+|plus\s+)?)/;   // hidden-value marks split too
+const DIFF_NUM = /(\u0005[^\u0006]*\u0006|\d+(?:\.\d+)?)/;
+const DIFF_WORD = /<[^>]*>|[A-Za-z']+|\s+|[\s\S]/g;
+function lcsPairs(A, B) {                    // pair[i] = the index in B that A[i] matches, or -1
+  const n = A.length, m = B.length, d = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    d[i][j] = eq(A[i], B[j]) ? d[i + 1][j + 1] + 1 : Math.max(d[i + 1][j], d[i][j + 1]);
+  const pair = new Array(n).fill(-1);
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (eq(A[i], B[j])) pair[i++] = j++; else if (d[i + 1][j] >= d[i][j + 1]) i++; else j++;
+  }
+  return pair;
+}
+/* a new text piece against tier 1's pieces: only the differing words red, or null when no
+   piece is at least half alike */
+function wordDiff(x, pieces) {
+  const A = x.match(DIFF_WORD) || [], solid = t => !/^\s+$/.test(t) && !t.startsWith("<");
+  const total = A.filter(solid).length;
+  if (total < 2) return null;
+  let best = 0, pair = null;
+  for (const p of pieces) {
+    const pr = lcsPairs(A, p.match(DIFF_WORD) || []);
+    const score = A.filter((t, i) => pr[i] >= 0 && solid(t)).length / total;
+    if (score > best) { best = score; pair = pr; }
+  }
+  if (best < .5) return null;
+  let out = "", run = "", gap = "";
+  const close = () => { if (run) out += `\u0001${run}\u0002`; run = ""; out += gap; gap = ""; };
+  A.forEach((t, i) => {
+    if (/^\s+$/.test(t)) { if (run) gap += t; else out += t; return; }
+    if (pair[i] >= 0 || t.startsWith("<")) { close(); out += t; return; }
+    run += gap + t; gap = "";
+  });
+  close();
+  return out;
+}
+function diffLine(line, beforeText) {
+  const num = DIFF_NUM.source, low = beforeText.toLowerCase();
+  const pieces = beforeText.split("\n").flatMap(l => l.split(DIFF_SPLIT).filter((_, i) => !(i % 2)))
+    .flatMap(c => c.split(DIFF_NUM).filter((_, i) => !(i % 2))).filter(p => p.trim());
+  const bare = n => n.replace(/[\u0005\u0006]/g, "");
+  const lit = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const find = re => beforeText.match(new RegExp(re, "i"));
+  const red = x => x.split(/(<[^>]*>)/).map((y, i) => i % 2 || !y.trim() ? y : `\u0001${y}\u0002`).join("");
+  const yellowIf = (x, was) => bare(was) === bare(x) ? x : `\u0003${x}\u0004`;
+  return line.split(DIFF_SPLIT).map((b, i) => {
+    if (i % 2 || !b.trim()) return b;                          // a separator
+    const parts = b.split(DIFF_NUM);                           // text, number, text, …
+    const m = find(parts.map((x, j) => j % 2 ? num : lit(x)).join(""));
+    if (m) { let k = 0; return parts.map((x, j) => j % 2 ? yellowIf(x, m[++k]) : x).join(""); }
+    const known = parts.map((x, j) => j % 2 || !x.trim() || low.includes(x.toLowerCase()));
+    let lastRed = false;                                       // a unit after a new number ("10s") is new too
+    return parts.map((x, j) => {
+      if (!(j % 2)) return known[j] && !(lastRed && x.trim().length <= 2) ? x
+        : lastRed || known[j] ? red(x) : wordDiff(x, pieces) ?? red(x);
+      lastRed = false;
+      const L = parts[j - 1], R = parts[j + 1];
+      if (known[j - 1] && known[j + 1]) {
+        const mm = find(lit(L) + num + lit(R));
+        if (mm) return yellowIf(x, mm[1]);
+      } else if (known[j + 1] && R.trim()) {
+        const mm = find(num + lit(R));
+        if (mm && bare(mm[1]) === bare(x)) return x;
+      }
+      lastRed = true;
+      return red(x);
+    }).join("");
+  }).join("");
 }
 /* the stat panel like the game's 潜在覚醒 view: Lv. Max = the last class tier at max level with
    every awakening node; Lv. 1 = class 1, level 1, no awakening (both without equipment, sub
@@ -1227,34 +1251,54 @@ function awakenSum(u) {
     for (const [k, v] of Object.entries(W.abilities[`awaken:${a.ability}`]?.stats || {})) s[k] = (s[k] || 0) + v;
   return s;
 }
+/* Stats tab (owner, session 10): the Muv-Luv wiki's stat card: icon, name, big number per row; fight
+   stats left, placement right; Lv. Max / Lv. 1 in the head */
+const STAT_SVG = {
+  hp: '<path d="M10 17s-6-3.8-6-8.2A3.3 3.3 0 0 1 10 6.6a3.3 3.3 0 0 1 6 2.2C16 13.2 10 17 10 17z"/>',
+  atk: '<path d="M4 4l8 8M4 4h3l7 7-3 3-7-7zM12 16l4-4M14 14l3 3"/>',
+  def: '<path d="M10 3l6 2v5c0 4-3 6.5-6 7.5C7 16.5 4 14 4 10V5z"/>',
+  mdef: '<path d="M10 3l6 2v5c0 4-3 6.5-6 7.5C7 16.5 4 14 4 10V5z"/><path d="M10 7.2l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/>',
+  crit: '<path d="M10 2l1.6 5.4L17 9l-5.4 1.6L10 16l-1.6-5.4L3 9l5.4-1.6z"/>',
+  critDmg: '<path d="M8 2.5l1.3 4.2 4.2 1.3-4.2 1.3L8 13.5 6.7 9.3 2.5 8l4.2-1.3z"/><path d="M15 12v6M12 15h6"/>',
+  range: '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.5"/><circle cx="10" cy="10" r=".6"/>',
+  aspd: '<path d="M3 6h7M2 10h9M3 14h7M12 5l5 5-5 5"/>',
+  targets: '<circle cx="10" cy="10" r="5.5"/><path d="M10 1.5v4M10 14.5v4M1.5 10h4M14.5 10h4"/>',
+  block: '<path d="M3 4.5h14v11H3zM3 8.2h14M3 11.8h14M8 4.5v3.7M12 8.2v3.6M8 11.8v3.7"/>',
+  deploy: '<circle cx="10" cy="10" r="7"/><path d="M10 6.5l3 3.5-3 3.5-3-3.5z"/>',
+  redeploy: '<path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3h-3M10 7v3.2l2 1.6"/>',
+  move: '<path d="M3 10h11M10 6l4 4-4 4M17 4.5v11"/>',
+};
 function statPanel(u) {
   const max = state.stv !== "lv1";
   const ti = max ? u._fam.tiers.length - 1 : 0, t = u._fam.tiers[ti], st = u.stats;
   const aw = max ? awakenSum(u) : {};
   const plus = (base, k, label) => aw[k] ? `${label}: ${base} + ${ui("awakening").toLowerCase()} ${aw[k]}` : "";
-  const cell = (label, value, tip = "") => `<div class="sp"${tip ? ` title="${esc(tip)}"` : ""}><span>${label}</span><b>${value}</b></div>`;
+  const big = v => typeof v === "number" ? v.toLocaleString("en-US") : v;
+  const cell = (k, value, tip = "") => `<div class="st-row"${tip ? ` title="${esc(tip)}"` : ""}><svg class="st-ic" viewBox="0 0 20 20"
+    aria-hidden="true">${STAT_SVG[k]}</svg><span class="st-name">${ui(k)}</span><span class="st-val">${big(value)}</span></div>`;
   const core = k => {
     const base = st[k][ti][max ? 1 : 0];
     let v = base, tip = "";
     if (k === "hp" && aw.hpRate) { v = Math.floor(base * (100 + aw.hpRate) / 100); tip = `${ui("hp")}: ${base} × ${1 + aw.hpRate / 100}`; }
     if (aw[k]) { tip = [tip || `${ui(k)}: ${base}`, `+ ${ui("awakening").toLowerCase()} ${aw[k]}`].join(" "); v += aw[k]; }
-    return cell(ui(k), v, tip);
+    return cell(k, v, tip);
   };
   const range = t.range ? t.range + (aw.range || 0) : "—";
   const crit = CRIT.crit[0] + (aw.crit || 0), critDmg = CRIT.critDmg[0] + (aw.critDmg || 0) - 100;
   const capTip = ui("capTip").replace("{cap}", `${CRIT.crit[1] + (aw.critMax || 0)}%`);
   const tabs = ["max", "lv1"].map(k => `<button data-stv="${k}"${(k === "max") === max ? ' class="on"' : ""}>${ui("stv_" + k)}</button>`).join("");
   const note = ui(max ? "stvTipMax" : "stvTip1").replace("{max}", st.maxLevel).replace("{cls}", term("classes", t.name));
-  return `<div class="stats"><div class="stv">${tabs}</div>
-    <div class="sp-grid">
-    ${core("hp")}${cell(ui("block"), blockOf(u, t), u.move === "Fly" ? ui("flyBlockTip") : "")}
-    ${core("atk")}${cell(ui("range"), range, plus(t.range, "range", ui("range")))}
-    ${core("def")}${cell(ui("aspd"), t.aspd + (aw.aspd || 0), plus(t.aspd, "aspd", ui("aspd")))}
-    ${core("mdef")}${cell(ui("deploy"), u.deploy[ti] + (aw.cost || 0), aw.cost ? `${ui("deploy")}: ${u.deploy[ti]} ${aw.cost} (${ui("awakening").toLowerCase()})` : "")}
-    ${cell(ui("crit"), `+${crit}%`, capTip)}${cell(ui("critDmg"), `+${critDmg}%`, ui("critDmgTip"))}
-    ${cell(ui("targets"), targetsTxt(t.targets))}${cell(ui("redeploy"), sec(Math.round(u.redeploy * 10) / 10))}
-    ${cell(ui("move"), esc(ui("mv_" + (u.move === "Normal" ? "Ground" : u.move))))}
-  </div><p class="stats-note">${esc(note)}</p></div>`;
+  return `<div class="card st-card"><div class="st-head"><div class="stv">${tabs}</div></div>
+    <div class="st-cols"><div class="st-col">
+      ${core("hp")}${core("atk")}${core("def")}${core("mdef")}
+      ${cell("crit", `+${crit}%`, capTip)}${cell("critDmg", `+${critDmg}%`, ui("critDmgTip"))}
+    </div><div class="st-col">
+      ${cell("range", range, plus(t.range, "range", ui("range")))}${cell("aspd", t.aspd + (aw.aspd || 0), plus(t.aspd, "aspd", ui("aspd")))}
+      ${cell("targets", targetsTxt(t.targets))}${cell("block", blockOf(u, t), u.move === "Fly" ? ui("flyBlockTip") : "")}
+      ${cell("deploy", u.deploy[ti] + (aw.cost || 0), aw.cost ? `${ui("deploy")}: ${u.deploy[ti]} ${aw.cost} (${ui("awakening").toLowerCase()})` : "")}
+      ${cell("redeploy", sec(Math.round(u.redeploy * 10) / 10))}
+      ${cell("move", esc(ui("mv_" + (u.move === "Normal" ? "Ground" : u.move))))}
+    </div></div></div><p class="stats-note">${esc(note)}</p>`;
 }
 function awakeningList(u) {
   if (!u.awakening.length) return "";
@@ -1270,10 +1314,6 @@ function profileCard(u) {
     ${sp ? `<dt>${ui("species")}</dt><dd>${esc(term("species", sp))}</dd>` : ""}
     <dt>${ui("illustrator")}</dt><dd>${esc(person(u.illustrator) || "—")}</dd>
     <dt>${ui("cv")}</dt><dd>${esc(person(u.cv) || "—")}</dd></dl></div>`;
-}
-function slider(id, value, max, label) {
-  return `<label class="slider"><span class="sl-lbl" id="${id}Lbl">${label}</span>
-    <input type="range" id="${id}" min="1" max="${max}" step="1" value="${value}"></label>`;
 }
 /* skins: ‹ n/N › on the face (owner, session 5: no picture row) */
 function skinNav(u) {
@@ -1291,37 +1331,38 @@ function renderUnit(u) {
   const res = state.skin || u._res;
   const fam = u._fam, top = fam.tiers[fam.tiers.length - 1];
   const traits = u.traits.map(t => `<button class="tag trait" data-trait="${t}">${esc(term("traits", L.traits[t]))}</button>`).join("");
-  const line = (k, v) => `<div class="il"><span class="k">${k}</span><span class="v">${v}</span></div>`;
-  // three rows, two columns (owner: the head no taller than the picture):
-  // Class | Attack, Weapon | Targets, Type (race trait) | Movement; the collab title on the name row
+  const line = (k, v, wrap) => `<div class="il"><span class="k">${k}</span><span class="v${wrap ? " wrap" : ""}">${v}</span></div>`;
+  // three rows, three columns (owner: the head no taller than the picture, session 10: the numbers
+  // as lines too; Type and Attack go onto a second line when they don't fit): Class | Attack | Cost, Weapon | Targets | Redeploy, Type (race trait) | Movement |
+  // Block; the collab title on the name row
+  const [cost, redeploy, block] = keyStats(u, line);
   const mv = u.move === "Normal" ? "Ground" : u.move;
   const lines = [
     line(ui("cls"), `<img src="img/class/${u.class}.webp" alt="">${esc(term("classes", top.name))}`),
     line(ui("attack"), `<span title="${esc(ui("hitTip_" + u.hit))}">${esc(ui("hit_" + u.hit))}</span><span class="dot">·</span>
-      <span title="${esc(ui("plTip_" + u._place))}">${esc(ui("pl_" + u._place))}</span>`),
+      <span title="${esc(ui("plTip_" + u._place))}">${esc(ui("pl_" + u._place))}</span>`, true), cost,
     line(ui("weaponType"), `<img src="img/weapon/${fam.weapon}.webp" alt="">${esc(term("weapons", L.weapons[fam.weapon]))}`),
-    line(ui("targets"), `${targetsTxt(top.targets)}`),
-    line(ui("type"), traits || "—"),
+    line(ui("targets"), `${targetsTxt(top.targets)}`), redeploy,
+    line(ui("type"), traits || "—", true),
     line(ui("move"), `<span title="${esc(ui("mvTip_" + mv))}">${esc(ui("mv_" + mv))}</span>${u.move !== "Fly" && u._flies
-      ? `<span class="dot">·</span><span title="${esc(ui("flyTrait"))}">${esc(ui("mv_Fly"))}</span>` : ""}`),
+      ? `<span class="dot">·</span><span title="${esc(ui("flyTrait"))}">${esc(ui("mv_Fly"))}</span>` : ""}`), block,
   ].join("");
   if (!UNIT_TABS.includes(state.tab)) state.tab = "details";
-  const details = `<div class="cols">
-      <div class="col"><h3 class="sec">${ui("traitsSec")}</h3>${raceCard(u)}</div>
-      <div class="col"><h3 class="sec">${ui("skills")}${slider("lvSlider", state.lv, MAX_LV, lvLabel())}</h3>
-        <div id="skillBox">${skillsHTML(u)}</div></div></div>
-    ${u.weapon ? `<h3 class="sec">${ui("weapon")}</h3>${weaponCard(u)}` : ""}`;
+  const details = `<div class="det-tab"><div class="cols">
+      <div class="col">${raceCard(u)}</div>
+      <div class="col" id="skillBox">${skillsHTML(u)}</div></div>
+    ${weaponCard(u)}</div>`;
   const cls = `<div class="cls-tab"><div class="tier-btns" id="tierBtns">${tierButtons(u)}</div>
     <div id="classBox">${classCard(u)}${actCard(u)}</div></div>`;
   const stats = `<div class="stats-tab"><div id="statsBox">${statPanel(u)}</div></div>`;
   const tabs = { details, class: cls, stats, profile: profileCard(u) };
   $("#detail").innerHTML = `
     <div class="summary unit-head"><div class="face-wrap">${faceHTML(u, res, true)}${skinNav(u)}</div><div class="info">
-      <h2><span class="nm">${esc(unitName(u))}</span><img class="h-el" src="img/element/${u.element}.webp" alt="" title="${esc(term("elements", L.elements[u.element]))}">${isJa() ? "" : `<span class="ruby">${esc(u.name)}</span>`}</h2>${u.collab
-        ? `<span class="h-collab" title="${esc(ui("collab"))}">${esc(term("collabs", u.collab))}</span>` : ""}
+      <div class="h-row"><h2><span class="nm">${esc(unitName(u))}</span><img class="h-el" src="img/element/${u.element}.webp" alt="" title="${esc(term("elements", L.elements[u.element]))}">${isJa() ? "" : `<span class="ruby">${esc(u.name)}</span>`}</h2>${u.collab
+        ? `<span class="h-collab" title="${esc(ui("collab"))}">${esc(term("collabs", u.collab))}</span>` : ""}</div>
       <div class="sub">${esc(tx(`unit.${u.id}.title`))}</div>
       <div class="ilines">${lines}</div></div>
-      ${keyStats(u)}${awakeningList(u)}</div>
+      ${awakeningList(u)}</div>
     <nav class="tabs">${UNIT_TABS.map(k => `<button data-tab="${k}">${ui(TAB_LABEL[k])}</button>`).join("")}</nav>
     ${UNIT_TABS.map(k => `<div id="tab_${k}"${state.tab === k ? "" : " hidden"}>${tabs[k]}</div>`).join("")}`;
   markTabs();
@@ -1350,11 +1391,12 @@ function markSearch() {
     }
   }
 }
-/* head: deploy cost and redeploy time only (owner, session 5); "a → b" = before → after awakening */
-function keyStats(u) {
+/* head: deploy cost, redeploy time, block as head lines (owner, session 10: no boxes); "a → b" =
+   before → after awakening */
+function keyStats(u, line) {
   const aw = awakenSum(u), h = u.head || {};
-  const pair = (label, base, after, fmt, tip) => `<div class="key" title="${esc(tip)}"><span>${label}</span>
-    <b>${fmt(base)}${after !== base ? `<i> → </i><em>${fmt(after)}</em>` : ""}</b></div>`;
+  const pair = (label, base, after, fmt, tip) => line(label, `<span class="num" title="${esc(tip)}">${fmt(base)}${
+    after !== base ? `<i>→</i><em>${fmt(after)}</em>` : ""}</span>`);
   // left: unit + class + the race trait (always there); → with awakening and the personal weapon
   // (both have to be earned)
   const tc = h["trait.cost"] || 0, wc = h["weapon.cost"] || 0;
@@ -1366,11 +1408,9 @@ function keyStats(u) {
   const cuts = [["headAwaken", aw.redeployPct], ["headTrait", h["trait.redeployPct"]], ["headWeapon", h["weapon.redeployPct"]]].filter(c => c[1]);
   const base = h["trait.redeployPct"] || 0, all = Math.max(base, h["weapon.redeployPct"] || 0, aw.redeployPct || 0);
   const rdTip = cuts.length ? cuts.map(([k, v]) => `${ui(k)} −${v}%`).join(", ") + (cuts.length > 1 ? ` (${ui("redeployMax")})` : "") : ui("redeploy");
-  return `<div class="keys">
-    ${pair(ui("costShort"), cost, costAw, v => v, costTip)}
-    ${pair(ui("redeploy"), num(rd * (100 - base) / 100), num(rd * (100 - all) / 100), v => v, rdTip)}
-    ${headBlock(u, u._fam.tiers[u._fam.tiers.length - 1], pair)}
-  </div>`;
+  return [pair(ui("costShort"), cost, costAw, v => v, costTip),
+    pair(ui("redeploy"), num(rd * (100 - base) / 100), num(rd * (100 - all) / 100), v => v, rdTip),
+    headBlock(u, u._fam.tiers[u._fam.tiers.length - 1], pair)];
 }
 /* the awakening nodes' chips under the awakening list: one row (owner); her own stat buffs last,
    the ones that don't fit go into "+n" (fitAwk) */
@@ -1415,18 +1455,17 @@ function tierButtons(u) {
 function markTabs() {
   document.querySelectorAll("#detail .tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === state.tab));
 }
-/* sliders: only the parts they change are drawn again */
+/* skill level bar: only that skill card is drawn again */
 $("#detail").addEventListener("input", e => {
-  const u = W._unitById[state.sel];
-  if (!u) return;
-  if (e.target.id === "lvSlider") {
-    state.lv = +e.target.value;
-    $("#lvSliderLbl").innerHTML = lvLabel();
-    $("#skillBox").innerHTML = skillsHTML(u);
-  } else return;
-  markTagChips();
+  const card = e.target.closest(".lvctl") && e.target.closest(".card[data-skill]");
+  if (card) setSkillLv(card, +e.target.value);
 });
 $("#detail").onclick = e => {
+  const step = e.target.closest("[data-lvstep]");
+  if (step) {                                 // skill level − / +
+    const card = step.closest(".card[data-skill]");
+    return setSkillLv(card, (state.slv[card.dataset.skill] ?? state.lv) + +step.dataset.lvstep);
+  }
   const jb = e.target.closest(".jp-btn");
   if (jb) {                                   // stays on across sub skills until turned off
     state.jp = !state.jp;
