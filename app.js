@@ -19,6 +19,7 @@ const store = {
 let W = null;                       // wiki.json
 const state = { lang: store.get("lang", "en"), picksBy: {}, q: "", sel: null, skin: null,
   mode: "units", ssel: null,                     // current mode, selected sub skill
+  rank: { base: null, cls: null, rar: null, el: null, sort: "atk", dir: -1, open: null },   // Percentile page: picks, sort, open list
   tier: 5, lv: 5, slv: {}, tab: "details",              // class tier and skill level sliders, unit page tab
   fsec: store.get("fsec", "unit"), page: null,   // filter tab; page = "formulas" or null
   showEtc: store.get("showEtc", false),          // sub skill list: show the Etc. tab (owner: off)
@@ -53,8 +54,8 @@ const UI = {
     act_boost: "ACT boost (race trait / weapon)",
     scopeSelf: "Buffs on self", scopeAllies: "Buffs on allies", scopeEnemy: "Debuffs and ailments on enemies", sc_enemy: "Enemy",
     tier: "Tier",
-    detailsTab: "Details", traitsSec: "Traits", clsTrait: "Class trait",
-    unitSec: "Unit", tagsSec: "Tags", collab: "Collab", formulas: "Game formulas", deployTip: "Deploy cost (class 5)",
+    detailsTab: "Details", traitsSec: "Traits", clsTrait: "Class trait", artTab: "Art", artNone: "No full art yet.",
+    unitSec: "Unit", tagsSec: "Tags", collab: "Collab", formulas: "Game formulas", ranking: "Percentile", rankNote: "Percentiles among the units shown. Click Class, Subclass, Rarity or Element to filter, a stat to sort, a row to open the unit.", rankClear: "Clear", unit: "Unit", deployTip: "Deploy cost (class 5)",
     subclass: "Subclass", stats: "Stats", hp: "HP", atk: "ATK", def: "DEF", mdef: "MDEF",
     crit: "Crit chance", critDmg: "Crit damage", normal: "Normal", statTip: "Lv 1 → Lv {max} (class {tier}, no equipment)",
     capTip: "cap {cap}", critDmgTip: "on top of normal damage (150% in total at +50%)",
@@ -87,7 +88,7 @@ const UI = {
     fx_t_trans: "Attack type", fx_t_dmg: "Damage", fx_t_debuff: "Debuff", fx_t_ail: "Ailment",
     aspd: "Attack speed", weaponType: "Weapon", type: "Type", stv_max: "Lv. Max", stv_lv1: "Lv. 1",
     stvTipMax: "Class 5 ({cls}), Lv {max}, all awakening; no equipment, sub skills or personal weapon",
-    stvTip1: "Class 1 ({cls}), Lv 1, no awakening", flyBlockTip: "Flying units can't block", hiddenTip: "The value in the game's data (the text only says it in words)", afterAwaken: "after awakening", sortBy: "Sort", sort_release: "Release", sort_name: "Name", sort_class: "Class", sortAsc: "Ascending", sortDesc: "Descending", costShort: "Cost", moveShort: "Move",
+    stvTip1: "Class 1 ({cls}), Lv 1, no awakening", compareWith: "Compare with", allUnits: "All units", sameBase: "Same main class", sameClass: "Same subclass", sameRarity: "Same rarity", pctTip: "Higher than or equal to {p}% of the other {n} units", rankTip: "Rank among the units compared", flyBlockTip: "Flying units can't block", hiddenTip: "The value in the game's data (the text only says it in words)", afterAwaken: "after awakening", sortBy: "Sort", sort_release: "Release", sort_name: "Name", sort_class: "Class", sortAsc: "Ascending", sortDesc: "Descending", costShort: "Cost", moveShort: "Move",
     units: "Units", subskills: "Sub skills", summons: "Summons", soon: "later", subSec: "Sub skill",
     ultimate: "Ultimate", shop: "Sold in the shop", fromRecipe: "Made from a recipe",
     catAttack: "Attack", catDefense: "Defense", catSupport: "Support", family: "Family",
@@ -144,8 +145,8 @@ const UI = {
     fly: "飛行", warp: "ワープ", rush: "突進", skills_2: "スキル2つ", pweapon: "専用武器", oc_skill: "OCスキル",
     act_boost: "ACT強化", scopeSelf: "自身へのバフ", scopeAllies: "味方へのバフ", scopeEnemy: "敵へのデバフ・状態異常", sc_enemy: "敵",
     tier: "段階",
-    detailsTab: "詳細", traitsSec: "特性", clsTrait: "クラス特性",
-    unitSec: "ユニット", tagsSec: "タグ", collab: "コラボ", formulas: "ゲームの計算式", deployTip: "出撃コスト（クラス5）",
+    detailsTab: "詳細", traitsSec: "特性", clsTrait: "クラス特性", artTab: "イラスト", artNone: "イラストはまだありません。",
+    unitSec: "ユニット", tagsSec: "タグ", collab: "コラボ", formulas: "ゲームの計算式", ranking: "パーセンタイル", rankNote: "表示中のユニットの中でのパーセンタイル。クラス・サブクラス・レアリティ・属性をクリックで絞り込み、ステータスで並べ替え、行でユニットへ。", rankClear: "クリア", unit: "ユニット", deployTip: "出撃コスト（クラス5）",
     subclass: "サブクラス", stats: "ステータス", hp: "HP", atk: "攻撃力", def: "物理防御", mdef: "魔法防御",
     crit: "クリティカル率", critDmg: "クリティカルダメージ", normal: "通常", statTip: "Lv1 → Lv{max}（クラス{tier}、装備なし）",
     capTip: "上限{cap}", critDmgTip: "通常ダメージに上乗せ（+50%で合計150%）",
@@ -158,7 +159,7 @@ const UI = {
     attack: "攻撃",
     aspd: "攻撃速度", weaponType: "武器種", type: "タイプ", stv_max: "Lv.最大", stv_lv1: "Lv.1",
     stvTipMax: "クラス5（{cls}）、Lv{max}、潜在覚醒すべて。装備・サブスキル・専用武器なし",
-    stvTip1: "クラス1（{cls}）、Lv1、潜在覚醒なし", flyBlockTip: "飛行ユニットはブロックできない", hiddenTip: "ゲームデータ上の値（テキストは言葉のみ）", afterAwaken: "潜在覚醒後", sortBy: "並び替え", sort_release: "実装順", sort_name: "名前", sort_class: "クラス", sortAsc: "昇順", sortDesc: "降順", costShort: "コスト", moveShort: "移動",
+    stvTip1: "クラス1（{cls}）、Lv1、潜在覚醒なし", compareWith: "比較対象", allUnits: "全ユニット", sameBase: "同じメインクラス", sameClass: "同じサブクラス", sameRarity: "同じレアリティ", pctTip: "他の{n}ユニットのうち{p}%以上を上回る（同値を含む）", rankTip: "比較対象の中での順位", flyBlockTip: "飛行ユニットはブロックできない", hiddenTip: "ゲームデータ上の値（テキストは言葉のみ）", afterAwaken: "潜在覚醒後", sortBy: "並び替え", sort_release: "実装順", sort_name: "名前", sort_class: "クラス", sortAsc: "昇順", sortDesc: "降順", costShort: "コスト", moveShort: "移動",
     units: "ユニット", subskills: "サブスキル", summons: "召喚", soon: "準備中", subSec: "サブスキル",
     ultimate: "究極", shop: "ショップで購入可", fromRecipe: "レシピで作成", catAttack: "攻撃",
     catDefense: "防御", catSupport: "支援", family: "系統", recipe: "素材", usedIn: "作成先",
@@ -207,6 +208,7 @@ Object.assign(SVG, {
   unitsic: '<circle class="s" cx="12" cy="8" r="4"/><path class="s" d="M4 21c0-4.5 3.6-7 8-7s8 2.5 8 7"/>',
   summonic: '<path class="s" d="M12 3l2.2 5 5.3.5-4 3.6 1.2 5.3L12 14.7 7.3 17.4l1.2-5.3-4-3.6 5.3-.5z"/><circle class="s" cx="12" cy="12" r="10"/>',
   gate: '<path class="s" d="M4 21V9a8 8 0 0 1 16 0v12M4 21h16M9 21v-7a3 3 0 0 1 6 0v7"/>',
+  rankic: '<path class="s" d="M4 20v-7M10 20V8M16 20v-9M2 20h20M3.5 9.5L9.5 4l5.5 4 5-4.5"/>',
   flag: '<path class="s" d="M6 21V4M6 4h11l-2 4 2 4H6"/>',
   mission: '<rect class="s" x="5" y="4" width="14" height="17" rx="2"/><path class="s" d="M9 4V3h6v1M8.5 11l2 2 4-4M8.5 17h7"/>',
   gift: '<rect class="s" x="4" y="9" width="16" height="12" rx="1.5"/><path class="s" d="M3 9h18v-3H3zM12 6v15M12 6c-1.5-3-5-3-5-1s3 1 5 1c2 0 5 1 5-1s-3.5-2-5 1"/>',
@@ -1248,8 +1250,8 @@ function awakenSum(u) {
     for (const [k, v] of Object.entries(W.abilities[`awaken:${a.ability}`]?.stats || {})) s[k] = (s[k] || 0) + v;
   return s;
 }
-/* Stats tab (owner, session 10): the Muv-Luv wiki's stat card: icon, name, big number per row; fight
-   stats left, placement right; Lv. Max / Lv. 1 in the head */
+/* Stats tab (owner, session 10): the Muv-Luv wiki's stat card: icon, name, big number per row;
+   Lv. Max / Lv. 1 in the head; session 12: one column, the percentiles beside it */
 const STAT_SVG = {
   hp: '<path d="M10 17s-6-3.8-6-8.2A3.3 3.3 0 0 1 10 6.6a3.3 3.3 0 0 1 6 2.2C16 13.2 10 17 10 17z"/>',
   atk: '<path d="M4 4l8 8M4 4h3l7 7-3 3-7-7zM12 16l4-4M14 14l3 3"/>',
@@ -1259,43 +1261,70 @@ const STAT_SVG = {
   critDmg: '<path d="M8 2.5l1.3 4.2 4.2 1.3-4.2 1.3L8 13.5 6.7 9.3 2.5 8l4.2-1.3z"/><path d="M15 12v6M12 15h6"/>',
   range: '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.5"/><circle cx="10" cy="10" r=".6"/>',
   aspd: '<path d="M3 6h7M2 10h9M3 14h7M12 5l5 5-5 5"/>',
-  targets: '<circle cx="10" cy="10" r="5.5"/><path d="M10 1.5v4M10 14.5v4M1.5 10h4M14.5 10h4"/>',
-  block: '<path d="M3 4.5h14v11H3zM3 8.2h14M3 11.8h14M8 4.5v3.7M12 8.2v3.6M8 11.8v3.7"/>',
-  deploy: '<circle cx="10" cy="10" r="7"/><path d="M10 6.5l3 3.5-3 3.5-3-3.5z"/>',
-  redeploy: '<path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3h-3M10 7v3.2l2 1.6"/>',
-  move: '<path d="M3 10h11M10 6l4 4-4 4M17 4.5v11"/>',
 };
+/* one fight stat as the panel shows it: Lv. Max (last tier, max level, awakening) or Lv. 1 */
+function coreStat(u, k, max) {
+  const ti = max ? u._fam.tiers.length - 1 : 0, base = u.stats[k][ti][max ? 1 : 0];
+  const aw = max ? (u._aw ||= awakenSum(u)) : {};
+  let v = base, tip = "";
+  if (k === "hp" && aw.hpRate) { v = Math.floor(base * (100 + aw.hpRate) / 100); tip = `${ui("hp")}: ${base} × ${1 + aw.hpRate / 100}`; }
+  if (aw[k]) { tip = [tip || `${ui(k)}: ${base}`, `+ ${ui("awakening").toLowerCase()} ${aw[k]}`].join(" "); v += aw[k]; }
+  return { v, tip };
+}
+/* percentiles (owner, session 12: the Muv-Luv wiki's): the share of the other units compared
+   that the unit is higher than or equal to, and the rank (1 + how many are higher; ties share it) */
+const PCT_KEYS = ["hp", "atk", "def", "mdef"];
+const FIGHT_KEYS = [...PCT_KEYS, "crit", "critDmg", "range", "aspd"];
+function percentile(u, k, max, units) {
+  const v = coreStat(u, k, max).v, others = units.filter(x => x !== u);
+  const vals = others.map(x => coreStat(x, k, max).v);
+  const rank = 1 + vals.filter(x => x > v).length;
+  if (!others.length) return { p: 100, n: 0, rank, of: 1 };
+  return { p: Math.round(vals.filter(x => x <= v).length / others.length * 100), n: others.length, rank, of: others.length + 1 };
+}
+function pctCard(u, max) {
+  const scope = state.pscope || "all";
+  const units = W.units.filter(x => scope === "base" ? x._base === u._base : scope === "class" ? x.class === u.class
+    : scope === "rarity" ? x._rar === u._rar : true);
+  const base = classFamiliesOf(u._base)[0];
+  const t = u._fam.tiers[max ? u._fam.tiers.length - 1 : 0];
+  const rarName = term("rarities", Object.values(W.lookups.rarity).find(r => r.code === u._rar)?.name);
+  const chip = (v, inner, tip) => `<button data-pscope="${v}"${scope === v ? ' class="on"' : ""} title="${esc(tip)}">${inner}</button>`;
+  // one row per stat row beside it (owner: lined up like the Muv-Luv wiki); crit rows stay empty
+  const row = k => {
+    if (!PCT_KEYS.includes(k)) return `<div class="st-row pc-row empty"></div>`;
+    const { p, n, rank, of } = percentile(u, k, max, units);
+    return `<div class="st-row pc-row" title="${esc(`${ui(k)}: ` + ui("pctTip").replace("{p}", p).replace("{n}", n))}"><span class="pbar"><i style="width:${p}%"></i></span>
+      <span class="pc-p">${p}%</span><span class="pc-rank" title="${esc(ui("rankTip"))}">#${rank} <small>/ ${of}</small></span></div>`;
+  };
+  return `<div class="card st-card pc-card"><div class="st-head"><span class="pc-lbl">${ui("compareWith")}</span><div class="stv">
+      ${chip("all", ui("allUnits"), ui("allUnits"))}
+      ${chip("base", `<img src="img/class/${base}.webp" alt="">`, `${ui("sameBase")}: ${term("classes", W.classes[base].name)}`)}
+      ${chip("class", `<img src="img/weapon/${u._weapon}.webp" alt="">`, `${ui("sameClass")}: ${term("classes", t.name)} · ${term("weapons", W.lookups.weapons[u._weapon])}`)}
+      ${chip("rarity", `<img src="img/rarity/${u._rar}.webp" alt="">`, `${ui("sameRarity")}: ${rarName}`)}</div></div>
+    ${FIGHT_KEYS.map(row).join("")}</div>`;
+}
 function statPanel(u) {
   const max = state.stv !== "lv1";
   const ti = max ? u._fam.tiers.length - 1 : 0, t = u._fam.tiers[ti], st = u.stats;
-  const aw = max ? awakenSum(u) : {};
+  const aw = max ? (u._aw ||= awakenSum(u)) : {};
   const plus = (base, k, label) => aw[k] ? `${label}: ${base} + ${ui("awakening").toLowerCase()} ${aw[k]}` : "";
   const big = v => typeof v === "number" ? v.toLocaleString("en-US") : v;
   const cell = (k, value, tip = "") => `<div class="st-row"${tip ? ` title="${esc(tip)}"` : ""}><svg class="st-ic" viewBox="0 0 20 20"
     aria-hidden="true">${STAT_SVG[k]}</svg><span class="st-name">${ui(k)}</span><span class="st-val">${big(value)}</span></div>`;
-  const core = k => {
-    const base = st[k][ti][max ? 1 : 0];
-    let v = base, tip = "";
-    if (k === "hp" && aw.hpRate) { v = Math.floor(base * (100 + aw.hpRate) / 100); tip = `${ui("hp")}: ${base} × ${1 + aw.hpRate / 100}`; }
-    if (aw[k]) { tip = [tip || `${ui(k)}: ${base}`, `+ ${ui("awakening").toLowerCase()} ${aw[k]}`].join(" "); v += aw[k]; }
-    return cell(k, v, tip);
-  };
+  const core = k => { const { v, tip } = coreStat(u, k, max); return cell(k, v, tip); };
   const range = t.range ? t.range + (aw.range || 0) : "—";
   const crit = CRIT.crit[0] + (aw.crit || 0), critDmg = CRIT.critDmg[0] + (aw.critDmg || 0) - 100;
   const capTip = ui("capTip").replace("{cap}", `${CRIT.crit[1] + (aw.critMax || 0)}%`);
   const tabs = ["max", "lv1"].map(k => `<button data-stv="${k}"${(k === "max") === max ? ' class="on"' : ""}>${ui("stv_" + k)}</button>`).join("");
   const note = ui(max ? "stvTipMax" : "stvTip1").replace("{max}", st.maxLevel).replace("{cls}", term("classes", t.name));
-  return `<div class="card st-card"><div class="st-head"><div class="stv">${tabs}</div></div>
-    <div class="st-cols"><div class="st-col">
+  // fight stats | their percentiles side by side (session 12, owner); targets, block, cost, redeploy and
+  // movement are in the head (owner: not here)
+  return `<div class="st-top"><div class="card st-card st-fight"><div class="st-head"><div class="stv">${tabs}</div></div>
       ${core("hp")}${core("atk")}${core("def")}${core("mdef")}
       ${cell("crit", `+${crit}%`, capTip)}${cell("critDmg", `+${critDmg}%`, ui("critDmgTip"))}
-    </div><div class="st-col">
       ${cell("range", range, plus(t.range, "range", ui("range")))}${cell("aspd", t.aspd + (aw.aspd || 0), plus(t.aspd, "aspd", ui("aspd")))}
-      ${cell("targets", targetsTxt(t.targets))}${cell("block", blockOf(u, t), u.move === "Fly" ? ui("flyBlockTip") : "")}
-      ${cell("deploy", u.deploy[ti] + (aw.cost || 0), aw.cost ? `${ui("deploy")}: ${u.deploy[ti]} ${aw.cost} (${ui("awakening").toLowerCase()})` : "")}
-      ${cell("redeploy", sec(Math.round(u.redeploy * 10) / 10))}
-      ${cell("move", esc(ui("mv_" + (u.move === "Normal" ? "Ground" : u.move))))}
-    </div></div></div><p class="stats-note">${esc(note)}</p>`;
+    </div>${pctCard(u, max)}</div><p class="stats-note">${esc(note)}</p>`;
 }
 function awakeningList(u) {
   if (!u.awakening.length) return "";
@@ -1320,8 +1349,17 @@ function skinNav(u) {
   return `<div class="skin-nav"><button data-skin="-1" aria-label="previous skin">‹</button>
     <span>${i + 1}/${u.skins.length}</span><button data-skin="1" aria-label="next skin">›</button></div>`;
 }
-const UNIT_TABS = ["details", "class", "stats", "profile"];
-const TAB_LABEL = { details: "detailsTab", class: "clsTrait", stats: "stats", profile: "profile" };
+/* Art tab (session 11): the full art as a still picture, img/art/<res>.webp (`py -m wikitool arts`:
+   the first frame of the game's Spine full art, the R18 build's art where the game swaps it,
+   720 px tall). Shown at its own pixel size (Windows scaling would otherwise enlarge it), never
+   wider than the page. The Spine animation version is kept in archive/spine-art/. */
+function artHTML(u) {
+  const res = state.skin || u._res;
+  return `<img class="art-img" src="img/art/${res}.webp" alt="" onload="this.style.width = this.naturalWidth / (window.devicePixelRatio || 1) + 'px'"
+    onerror="this.outerHTML = '<div class=&quot;art-msg&quot;>${esc(ui("artNone"))}</div>'">`;
+}
+const UNIT_TABS = ["details", "class", "stats", "profile", "art"];
+const TAB_LABEL = { details: "detailsTab", class: "clsTrait", stats: "stats", profile: "profile", art: "artTab" };
 
 function renderUnit(u) {
   const L = W.lookups;
@@ -1352,7 +1390,7 @@ function renderUnit(u) {
   const cls = `<div class="cls-tab"><div class="tier-btns" id="tierBtns">${tierButtons(u)}</div>
     <div id="classBox">${classCard(u)}${actCard(u)}</div></div>`;
   const stats = `<div class="stats-tab"><div id="statsBox">${statPanel(u)}</div></div>`;
-  const tabs = { details, class: cls, stats, profile: profileCard(u) };
+  const tabs = { details, class: cls, stats, profile: profileCard(u), art: `<div class="art-tab" id="artBox">${artHTML(u)}</div>` };
   $("#detail").innerHTML = `
     <div class="summary unit-head"><div class="face-wrap">${faceHTML(u, res, true)}${skinNav(u)}</div><div class="info">
       <div class="h-row"><h2><span class="nm">${esc(unitName(u))}</span><img class="h-el" src="img/element/${u.element}.webp" alt="" title="${esc(term("elements", L.elements[u.element]))}">${isJa() ? "" : `<span class="ruby">${esc(u.name)}</span>`}</h2>${u.collab
@@ -1512,9 +1550,9 @@ $("#detail").onclick = e => {
     markTagChips();
     return;
   }
-  const sv = e.target.closest("[data-stv]");
+  const sv = e.target.closest("[data-stv], [data-pscope]");
   if (sv) {
-    state.stv = sv.dataset.stv;
+    if (sv.dataset.stv) state.stv = sv.dataset.stv; else state.pscope = sv.dataset.pscope;
     $("#statsBox").innerHTML = statPanel(W._unitById[state.sel]);
     return;
   }
@@ -1539,16 +1577,25 @@ $("#detail").onclick = e => {
     state.skin = u.skins[(i + +sk.dataset.skin + n) % n].resource;
     $("#detail .summary .art").src = `img/unit/${state.skin}.webp`;
     $("#detail .skin-nav").outerHTML = skinNav(u);
+    $("#artBox").innerHTML = artHTML(u);
   }
 };
 
 /* ---------------- history: each page is a step, so Back (browser, Alt+←, the ← button) returns ---------------- */
 function go(hash) {
-  if (hash === location.hash) return;
+  if (hash === location.hash) return mobileView();   // the same page again (phone: from the list)
   history.pushState({ n: (history.state?.n || 0) + 1 }, "", hash);
   markBack();
 }
-function markBack() { $("#backBtn").hidden = !(history.state?.n > 0); }
+function markBack() { $("#backBtn").hidden = !(history.state?.n > 0); mobileView(); }
+/* phone (session 12, owner: "semi mobile", nothing more): under 760 px one pane at a time:
+   the list, or the page of what was picked (a #unit/… link opens the page); ‹ goes back to the list */
+function mobileView() {
+  const page = /^#(unit|subskill|dungeon)\//.test(location.hash) || ["summons", "formulas"].includes(state.mode);
+  $("#layout").classList.toggle("m-page", page);
+  $("#mListName").textContent = ui(state.mode);
+}
+$("#mList").onclick = () => $("#layout").classList.remove("m-page");
 $("#backBtn").onclick = () => history.back();
 window.addEventListener("popstate", markBack);
 
@@ -1967,7 +2014,8 @@ function selectDungeon(qid, fromHash) {
 let FORMULAS = null;
 async function showFormulas() {
   if (FORMULAS === null) {
-    try { FORMULAS = await (await fetch("formulas.html")).text(); } catch { FORMULAS = ""; }
+    // no-cache: ask the server each time (a stale copy hid page updates, session 12); cheap, it answers 304
+    try { FORMULAS = await (await fetch("formulas.html", { cache: "no-cache" })).text(); } catch { FORMULAS = ""; }
   }
   if (state.mode !== "formulas") return;
   $("#detail").innerHTML = `<article class="page">${FORMULAS || `<div class="empty">formulas.html missing</div>`}</article>`;
@@ -1982,6 +2030,99 @@ $("#navInfo").onclick = e => {
   const b = e.target.closest(".toc");
   if (b) document.getElementById(b.dataset.f)?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
+
+/* ---------------- Percentile page (session 12, owner: like the Muv-Luv wiki's Percentile ranking) ----------------
+   the table (fixed columns, owner: no bounce): # | unit | class | subclass | rarity | element | per stat
+   its value and % (the value header sorts, the % header is empty); the stats and Lv. Max / Lv. 1 are
+   the Stats tab's (coreStat); percentiles among the units shown. Filters (owner): click the Class /
+   Subclass / Rarity / Element header for its list, one pick each; nothing on the left */
+function rankUnits() {
+  const r = state.rank;
+  return W.units.filter(u => (!r.base || u._base === r.base) && (!r.cls || u._weapon === r.cls)
+    && (!r.rar || u._rar === r.rar) && (!r.el || String(u.element) === r.el));
+}
+/* each filter: its options [value, icon, name] */
+function rankOpts(k) {
+  const r = state.rank, L = W.lookups;
+  const bases = [...new Set(W.units.map(u => u._base))].sort();
+  if (k === "base") return bases.map(b => { const f = classFamiliesOf(b)[0];
+    return [b, `<img src="img/class/${f}.webp" alt="">`, term("classes", W.classes[f].name)]; });
+  if (k === "cls") return bases.filter(b => !r.base || b === r.base)
+    .flatMap(b => classFamiliesOf(b).filter(f => W.units.some(u => String(u.class) === f))).map(f => {
+      const w = String(W.classes[f].weapon);
+      return [w, `<img src="img/weapon/${w}.webp" alt="">`, `${term("classes", W.classes[f].name)} · ${term("weapons", L.weapons[w])}`]; });
+  if (k === "rar") return RAR_ORDER.map(c => [c, `<img src="img/rarity/${c}.webp" alt="">`,
+    term("rarities", Object.values(L.rarity).find(x => x.code === c)?.name)]);
+  return Object.keys(L.elements).map(e => [e, `<img src="img/element/${e}.webp" alt="">`, term("elements", L.elements[e])]);
+}
+const RANK_FILTERS = [["base", "cls"], ["cls", "subclass"], ["rar", "wrarity"], ["el", "welement"]];
+function rankPop(k) {
+  const r = state.rank;
+  return `<div class="rk-pop" data-pop="${k}"><button class="rk-o${r[k] ? "" : " on"}" data-rk="${k}" data-v="">${esc(ui("allUnits"))}</button>${
+    rankOpts(k).map(([v, html, name]) => `<button class="rk-o${r[k] === v ? " on" : ""}" data-rk="${k}" data-v="${esc(v)}">${html}<span>${esc(name)}</span></button>`).join("")}</div>`;
+}
+function drawRanking() {
+  if (state.mode !== "ranking") return;
+  const r = state.rank, max = state.stv !== "lv1", list = rankUnits();
+  const val = new Map(list.map(u => [u, Object.fromEntries(PCT_KEYS.map(k => [k, coreStat(u, k, max).v]))]));
+  const sorted = Object.fromEntries(PCT_KEYS.map(k => [k, list.map(u => val.get(u)[k]).sort((a, b) => a - b)]));
+  const upTo = (a, v) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; };
+  // the same as the Stats tab: the share of the other units it is higher than or equal to
+  const pct = (u, k) => list.length < 2 ? 100 : Math.round((upTo(sorted[k], val.get(u)[k]) - 1) / (list.length - 1) * 100);
+  const rows = [...list].sort((a, b) => r.dir * (val.get(a)[r.sort] - val.get(b)[r.sort]) || a.id - b.id);
+  // filter headers: the name, or the picked icon; ▾ opens the list
+  const fhead = RANK_FILTERS.map(([k, label]) => {
+    const pick = r[k] && rankOpts(k).find(o => o[0] === r[k]);
+    return `<th class="fth${r[k] ? " on" : ""}${r.open === k ? " open" : ""}" data-fth="${k}"${pick ? ` title="${esc(pick[2])}"` : ""}>${
+      pick ? pick[1] : esc(ui(label))}<span class="caret">▾</span>${r.open === k ? rankPop(k) : ""}</th>`; }).join("");
+  const head = PCT_KEYS.map(k => `<th class="num stat${r.sort === k ? " on" : ""}" data-sort="${k}">${esc(ui(k))}${
+    r.sort === k ? (r.dir < 0 ? " ▼" : " ▲") : ""}</th><th class="pcth"></th>`).join("");
+  const body = rows.map((u, i) => `<tr data-unit="${u.id}"><td class="rk">${i + 1}</td>
+      <td><div class="rnm"><img class="rpic" src="img/unit/${u._res}_s.webp" alt="" loading="lazy"><span>${esc(unitName(u))}</span></div></td>
+      <td class="ric"><img src="img/class/${classFamiliesOf(u._base)[0]}.webp" alt="" title="${esc(term("classes", W.classes[classFamiliesOf(u._base)[0]].name))}"></td>
+      <td class="ric"><img src="img/weapon/${u._weapon}.webp" alt="" title="${esc(`${term("classes", u._fam.name)} · ${term("weapons", W.lookups.weapons[u._weapon])}`)}"></td>
+      <td class="ric"><img src="img/rarity/${u._rar}.webp" alt=""></td>
+      <td class="ric"><img src="img/element/${u.element}.webp" alt="" title="${esc(term("elements", W.lookups.elements[u.element]))}"></td>
+      ${PCT_KEYS.map(k => { const on = r.sort === k ? " on" : "";
+        return `<td class="num rv${on}">${val.get(u)[k].toLocaleString("en-US")}</td><td class="num rpct${on}">${pct(u, k)}%</td>`; }).join("")}</tr>`).join("");
+  const tabs = ["max", "lv1"].map(k => `<button data-rstv="${k}"${(k === "max") === max ? ' class="on"' : ""}>${ui("stv_" + k)}</button>`).join("");
+  const any = r.base || r.cls || r.rar || r.el;
+  $("#detail").innerHTML = `<div class="rank-page"><div class="rank-bar"><div class="stv">${tabs}</div>
+      <span class="rk-count">${list.length}</span>${any ? `<button class="btn" data-rk="clear">${esc(ui("rankClear"))}</button>` : ""}
+      <p class="note-line">${esc(ui("rankNote"))}</p></div>
+    <div class="card rankcard"><table class="rtable"><colgroup><col class="c-rk"><col class="c-unit">${'<col class="c-ic">'.repeat(4)}${
+      '<col class="c-v"><col class="c-p">'.repeat(PCT_KEYS.length)}</colgroup>
+    <thead><tr><th class="num">#</th><th>${esc(ui("unit"))}</th>${fhead}${head}</tr></thead>
+    <tbody>${body}</tbody></table></div></div>`;
+}
+$("#detail").addEventListener("click", e => {
+  if (state.mode !== "ranking") return;
+  const r = state.rank;
+  const rk = e.target.closest("[data-rk]");
+  if (rk) {                                                   // a pick in a header list, or Clear
+    const k = rk.dataset.rk;
+    if (k === "clear") r.base = r.cls = r.rar = r.el = null;
+    else {
+      r[k] = rk.dataset.v || null;
+      if (k === "base") r.cls = null;                         // a new class: its subclasses
+      if (k === "cls" && r.cls) r.base = r.cls.slice(0, 2);   // a subclass: its class too
+    }
+    r.open = null;
+    return drawRanking();
+  }
+  const fth = e.target.closest("th[data-fth]");
+  if (fth) { r.open = r.open === fth.dataset.fth ? null : fth.dataset.fth; return drawRanking(); }
+  if (r.open) { r.open = null; drawRanking(); return; }      // a click elsewhere closes the list
+  const sv = e.target.closest("[data-rstv]");
+  if (sv) { state.stv = sv.dataset.rstv; return drawRanking(); }
+  const th = e.target.closest("th[data-sort]");
+  if (th) {
+    if (r.sort === th.dataset.sort) r.dir = -r.dir; else { r.sort = th.dataset.sort; r.dir = -1; }
+    return drawRanking();
+  }
+  const row = e.target.closest("tr[data-unit]");
+  if (row) location.hash = `#unit/${row.dataset.unit}`;     // that unit's page
+});
 
 /* ---------------- units ---------------- */
 function select(id, fromHash) {
@@ -2004,7 +2145,7 @@ function markSelected() {
 function showEmpty(key = "pick") { $("#detail").innerHTML = `<div class="empty">${ui(key)}</div>`; }
 
 /* ---------------- modes (the title menu) ---------------- */
-const MODES = [["units", "unitsic"], ["subskills", null], ["dungeons", "gate"], ["summons", "summonic"], ["formulas", "fx"]];
+const MODES = [["units", "unitsic"], ["subskills", null], ["dungeons", "gate"], ["ranking", "rankic"], ["summons", "summonic"], ["formulas", "fx"]];
 function items() { return state.mode === "units" ? W.units : state.mode === "subskills" ? W._subs : []; }
 function listBox() { return state.mode === "units" ? $("#units") : state.mode === "subskills" ? $("#subs") : null; }
 function buildMenu() {
@@ -2039,13 +2180,14 @@ function setMode(mode, fromHash) {
   $("#units").hidden = mode !== "units";
   $("#subs").hidden = mode !== "subskills";
   $("#dungeonList").hidden = mode !== "dungeons";
-  $("#navInfo").hidden = listed || mode === "dungeons";
+  $("#navInfo").hidden = listed || mode === "dungeons" || mode === "ranking";
   $("#search").hidden = !listed;
   $("#reset").hidden = !listed;
   $("#listFilterBtn").hidden = !listed;
   $("#subFilter").hidden = !listed || !state.lf;
   $("#layout").classList.toggle("nofilter", !listed);
   $("#layout").classList.toggle("formulas", mode === "formulas");   // narrow contents, wide page (owner)
+  $("#layout").classList.toggle("ranking", mode === "ranking");     // a narrow left (the top bar only), the table
   $("#search").placeholder = ui(mode === "subskills" ? "searchSub" : "search");
   buildMenu();
   if (listed) { buildFilters(); applyFilters(); } else $("#count").textContent = "";
@@ -2060,7 +2202,8 @@ function renderMode(fromHash) {
   else if (state.mode === "summons") {
     $("#navInfo").innerHTML = `<div class="empty">${ui("summonsText")}</div>`;
     $("#detail").innerHTML = `<div class="empty">${ui("summonsText")}</div>`; hash("#summons");
-  } else { hash("#formulas"); showFormulas(); }
+  } else if (state.mode === "ranking") { hash("#ranking"); drawRanking(); }
+  else { hash("#formulas"); showFormulas(); }
 }
 function fromLocation() {
   const h = location.hash;
@@ -2140,6 +2283,7 @@ $("#clear").onclick = () => clearSide(false);
 $("#reset").onclick = () => { state.q = ""; $("#search").value = ""; clearSide(true); };
 window.addEventListener("hashchange", () => {
   const mode = fromLocation();
+  setTimeout(mobileView);
   if (mode !== state.mode) setMode(mode, true);
   else if (mode === "units" && state.sel) select(state.sel, true);
   else if (mode === "subskills" && state.ssel) selectSub(state.ssel, true);
@@ -2147,7 +2291,7 @@ window.addEventListener("hashchange", () => {
 });
 
 /* ---------------- start ---------------- */
-fetch("data/wiki.json").then(r => r.json()).then(data => {
+fetch("data/wiki.json", { cache: "no-cache" }).then(r => r.json()).then(data => {
   W = data;
   W._tagById = Object.fromEntries(W.lookups.tags.map(t => [t.id, t]));
   W._unitById = Object.fromEntries(W.units.map(u => [u.id, u]));
@@ -2158,6 +2302,7 @@ fetch("data/wiki.json").then(r => r.json()).then(data => {
   setPinned(store.get("pinned", false));
   state.mode = fromLocation();
   applyLang();
+  mobileView();
 }).catch(err => {
   $("#detail").innerHTML = `<div class="empty">Could not load data/wiki.json (${esc(err.message)}).<br>
     Run <code>py -m wikitool export</code>, then open the site with <code>py -m wikitool site</code>.</div>`;

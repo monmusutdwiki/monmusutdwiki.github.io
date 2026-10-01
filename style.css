@@ -334,6 +334,24 @@ h3.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .st-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+/* session 12 (owner): fight stats in a narrow card, their percentiles beside it (same head and
+   row heights, so the rows line up, like the Muv-Luv wiki); placement in its own card under them */
+.st-top { display: flex; gap: 12px; align-items: flex-start; }
+.st-fight { flex: 0 0 300px; min-width: 0; }
+.st-fight .st-row:last-child, .pc-card .st-row:last-child { border-bottom: 0; }
+.pc-card { flex: 0 1 380px; min-width: 0; }   /* fixed width: no shift between units; short bars (owner) */
+.pc-card .st-head { gap: 10px; }
+.pc-lbl { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pc-card .stv { margin: 0; }
+.pc-card .stv button { display: inline-flex; align-items: center; gap: 5px; }
+.pc-card .stv img { height: 18px; width: auto; }
+.pc-row { gap: 12px; }
+.pc-row.empty { border-bottom-color: transparent; }
+.pbar { flex: 1; height: 5px; border-radius: 3px; background: var(--chip); overflow: hidden; min-width: 40px; }
+.pbar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); opacity: .55; }
+.pc-p { min-width: 44px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-rank { min-width: 84px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-rank small { color: var(--muted); font-weight: 500; }
 .face-wrap { position: relative; }
 .skin-nav { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px;
   background: rgba(0, 0, 0, .62); border-radius: 5px; padding: 1px 3px; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
@@ -884,3 +902,113 @@ mark.fxm { background: #ffe07a; color: #222; border-radius: 2px; padding: 0 1px;
 .awk-tags .tag { white-space: nowrap; flex: none; }
 .awk-tags .tag { font-size: 10px; padding: 0 6px; }
 .awk-more { font-size: 11px; color: var(--muted); padding: 0 4px; align-self: center; cursor: default; }
+
+/* Art tab (session 11): the full art, a 720 px tall still shown at its own pixel size */
+.art-tab { display: flex; justify-content: center; margin-top: 14px; }
+.art-img { display: block; max-width: 100%; height: auto; }
+.art-msg { padding: 40px 0; color: var(--muted); }
+
+/* ---- phone (session 12, "semi mobile"): one pane at a time, the list or the page; ‹ back to the list ---- */
+.m-list { display: none; }
+@media (max-width: 760px) {
+  .layout, .layout.pinned, .layout.nofilter, .layout.nofilter.formulas { display: flex; flex-direction: column; }
+  .side, .detail { flex: 1; min-height: 0; }
+  .detail { padding: 0 10px 40px; border-left: 0; }
+  .layout.m-page .side, .layout:not(.m-page) .detail, .layout.m-page .filters { display: none; }
+  .layout.m-page .m-list { display: flex; align-items: center; gap: 4px; flex: none; height: 40px; padding: 0 10px;
+    border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--accent); cursor: pointer; }
+  .m-list svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .filters { position: fixed; top: 50px; right: 0; bottom: 0; width: 0; z-index: 5; }
+  .filter-body { width: min(var(--filter-w), 100vw); }
+  .filters:hover .filter-btn { right: min(var(--filter-w), 100vw); }
+  .layout.pinned .filter-btn { display: flex; }
+  .layout.pinned .filter-body { transform: translateX(100%); box-shadow: -8px 0 24px rgba(0,0,0,.18); }
+  .layout.pinned .filters:hover .filter-body { transform: none; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .layout.ranking .side, .layout.ranking .detail { display: flex; }
+  .layout.ranking .detail { display: block; }
+}
+/* phone (session 12): the unit head one label + value per row, in its order; tighter stats; sub skill /
+   dungeon heads in one column (last in the file, so it wins over the rules above) */
+@container (max-width: 480px) {
+  .unit-head .info { grid-template-columns: max-content minmax(0, 1fr); }
+  .unit-head .ilines .il > * { grid-row: auto !important; }
+  .unit-head .ilines .il .k { grid-column: 1 !important; padding-left: 0 !important; border-left: 0 !important; }
+  .unit-head .ilines .il .v { grid-column: 2 !important; }
+  .st-card { padding: 0 10px; }
+  .st-cols { column-gap: 14px; }
+  .st-row { gap: 6px; }
+  .st-ic { width: 18px; height: 18px; }
+  .st-name { font-size: 13px; }
+  .st-val { font-size: 16px; }
+  /* fight | percentile stay side by side: no bars, the head's chips under "Compare with" */
+  .st-top { gap: 8px; }
+  .st-fight { flex: 0 0 52%; }
+  .pc-card { padding: 0 8px; }
+  .pc-card .st-head { flex-wrap: wrap; align-content: center; row-gap: 2px; gap: 4px; }
+  .pc-card .stv button { padding: 2px 6px; font-size: 11px; }
+  .pbar { display: none; }
+  .pc-row { justify-content: flex-end; gap: 6px; }
+  .pc-p { min-width: 0; }
+  .pc-rank { min-width: 0; }
+  /* sub skill and dungeon heads: one column */
+  .summary.sub-head, .summary.sub-head.ja { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; }
+  .summary.sub-head > :nth-child(n+3) { grid-column: 1 / -1; }
+  .summary.sub-head2 { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .bossline { flex-wrap: wrap; gap: 10px; }
+  .summary.dun-sum { grid-template-columns: minmax(0, 1fr); height: auto; gap: 12px; }
+  .dun-details, .dun-unit { border-left: 0; padding-left: 0; }
+  .dd { grid-template-columns: 110px minmax(0, 1fr); font-size: 14px; }
+  .prize, .rc-row, .how-row, .how-g { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .drops { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Percentile page (session 12): filters on the left, the table in the middle ---- */
+/* no left column (owner): the top bar (menu button) across, the table under it; the table card
+   scrolls, so its head stays (frozen) */
+.layout.nofilter.ranking { display: flex; flex-direction: column; }
+.layout.ranking .side { flex: none; }
+.layout.ranking .side > :not(.top) { display: none; }
+.layout.ranking .detail { flex: 1; min-height: 0; overflow: hidden; border-left: 0; }
+.layout.ranking .rank-page { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+.layout.ranking .rankcard { flex: 0 1 auto; min-height: 0; overflow: auto; align-self: flex-start; }
+.rk-count { background: var(--accent); color: #fff; border-radius: 10px; padding: 0 9px; font-size: 12px; }
+.rank-page { padding: 14px 0 20px; }
+.rank-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 10px; }
+.rank-bar .stv { margin: 0; }
+.rank-bar .stv button { flex: none; padding: 4px 12px; }
+.rank-bar .note-line { margin: 0; color: var(--muted); font-size: 12px; }
+.rankcard { padding: 0; max-width: 100%; margin-bottom: 0; }
+/* fixed columns (owner): the table never changes width with the filters or the sort */
+.rtable { border-collapse: collapse; table-layout: fixed; width: 1148px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.rtable col.c-rk { width: 52px; } .rtable col.c-unit { width: 240px; } .rtable col.c-ic { width: 70px; }
+.rtable col.c-v { width: 88px; } .rtable col.c-p { width: 56px; }
+.rtable th { position: sticky; top: 0; z-index: 1; background: var(--panel); text-align: left; font-size: 13px; font-weight: 400;
+  color: var(--muted); padding: 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+.rtable th[data-sort] { cursor: pointer; }
+.rtable th[data-sort]:hover, .rtable th.on { color: var(--accent); }
+.rtable td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; overflow: hidden; }
+.rtable tbody tr { cursor: pointer; }
+.rtable tbody tr:hover td { background: var(--accent-soft); }
+.rtable td.on { background: rgba(240, 101, 149, .06); }
+.rtable .num { text-align: right; }
+.rtable .rk { color: var(--muted); font-size: 13px; text-align: right; }
+.rnm { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rnm span { overflow: hidden; text-overflow: ellipsis; }
+.rpic { width: 60px; height: 49px; flex: none; object-fit: cover; border-radius: 7px; background: var(--tile); }
+.ric img { height: 34px; width: auto; display: block; margin: 0 auto; }
+.rtable th.pcth, .rtable td.rpct { padding-left: 0; padding-right: 10px; }
+.rtable td.rpct { color: var(--muted); font-size: 13px; }
+/* filter headers (owner): click for the list; a pick shows its icon */
+.rtable th.fth { cursor: pointer; text-align: center; overflow: visible; position: sticky; }
+.rtable th.fth:hover, .rtable th.fth.on { color: var(--accent); }
+.rtable th.fth img { height: 26px; width: auto; vertical-align: middle; }
+.rtable th.fth .caret { font-size: 10px; margin-left: 3px; color: var(--muted); }
+.rtable th.fth.open { z-index: 3; }
+.rk-pop { position: absolute; top: 100%; left: 0; z-index: 5; min-width: 220px; max-height: 60vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  padding: 4px; display: grid; gap: 1px; text-align: left; cursor: default; }
+.rk-o { display: flex; align-items: center; gap: 8px; border: 0; background: none; border-radius: 5px; padding: 4px 8px;
+  cursor: pointer; text-align: left; color: var(--text); white-space: nowrap; font-size: 14px; }
+.rk-o:hover { background: var(--chip); }
+.rk-o.on { background: var(--accent-soft); color: var(--accent); }
+.rk-o img { height: 26px; width: auto; flex: none; }

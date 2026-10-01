@@ -1,83 +1,123 @@
 <!-- The Game formulas page (#formulas), loaded into the middle column by app.js.
      Every formula here was read from the game's own code (ntd.wasm, client 1.1.146) and
-     masterdata; DATA.md "Game formulas" keeps the same list with the code references. -->
+     masterdata; DATA.md "Game formulas" keeps the same list with the code references.
+     Style (session 12, owner): every section = one formula box, what each letter means, notes,
+     an example; plain words only: no data table, field or code names on the page. -->
 <h2>Game formulas</h2>
-<p class="lead">How the game turns its data into the numbers you see. Read from the game's own code
-(client 1.1.146); names in <code>code</code> are the game's. Time is in frames, 30 per second.
-The game calculates in 32-bit floats, and "cut" means the fraction is dropped (toward zero).</p>
+<p class="lead">How the game turns its data into the numbers you see, read from the game's own code
+(client 1.1.146). Time is in frames, 30 per second. The game calculates in 32-bit floats; "cut" means
+the fraction is dropped (toward zero).</p>
 
 <h3>Deploy cost</h3>
-<pre>deploy cost = unit cost + class cost</pre>
-<p>The unit's own <code>cost</code> (3, 4 or 5) is only its share; the class tier adds its own
-(<code>job_data.cost</code>: Warrior 11, Guardian (sword &amp; shield) 19, Sniper (bow) 8 …).
-Example: Platina 5 + Guardian 19 = <b>24</b>. Awakening nodes like "Deploy cost −1" and
-cost-down effects in battle come on top of this. <span class="src">PlayerData.Setup, PlayerData.get_Cost</span></p>
+<pre class="sum">Cost = A + cut( A × (B − 1) ) + C          (never below 0, no upper limit)
+
+A = U + K
+U = the unit's own cost (3, 4 or 5)
+K = the class tier's cost (Warrior 11, Guardian 19, Sniper 8 …)
+B = (1 + % up − % down), the same four groups as Stats in battle
+C = flat increases − flat cuts</pre>
+<ul>
+<li><b>U</b> is only the unit's share; most of the cost comes from the class.</li>
+<li><b>C</b> adds up every flat change on the unit: her own sub skill ("Deploy cost −1" … −10, or a "cost
+sacrifice" +2 … +10), race trait and awakening nodes, and the "in the party" sub skills of other units
+(Paradigm Cost −3 for every ally; Summer Partnership −1 for allies of its holder's element, itself included;
+not for Neutral).</li>
+<li><b>B</b>: only one effect changes the cost by %: Late Summer's Rise and Fall, +100 %.</li>
+<li>The % works on <b>A</b> only (before the flat changes), and its <b>change</b> is cut, not the result:
+a % cut rounds against you.</li>
+<li>All of this is fixed before the battle. In battle, map or quest effects can still add or take cost
+for units that match their condition (no unit or sub skill does this now); the cost again never goes
+below 0.</li>
+<li>The game also stores a "cost-down level" per unit, but the cost code doesn't use it.</li>
+</ul>
+<p>Examples: Platina 5 + Guardian 19 = <b>24</b>. With 4th Anniversary Favor (−4) and a Paradigm Cost unit in the
+party (−3): 24 − 7 = <b>17</b>. With Counter Party (−10): <b>14</b>. With Late Summer's Rise and Fall: 24 + 24 =
+<b>48</b>.</p>
 
 <h3>Base stats (HP, ATK, DEF, MDEF)</h3>
-<pre>level rate = clamp((level − 1) / max level, 0, 1)
-stat = cut( (class min + (class max − class min) × level rate) × unit % / 100 )</pre>
-<p>The class tier gives the range (<code>job_data.minLife … maxMagicDefense</code>); the unit card
-gives a percentage for each stat (<code>unitcard.life, power, defense, magicDefense</code>, about
-110–130). Note the rate divides by the max level, not max level − 1, so even at max level it is
-a little under 1 (149/150). Equipment, the personal weapon's level bonuses and abilities are added
-afterwards. There is no separate magic attack: magic classes use ATK.
-<span class="src">PlayerData.Setup, PlayerData.CalcBaseParam</span></p>
-<table><tr><th>Max level</th><td>rarity max level (30 for every rarity) + the rank bonus of the highest rank
-(rank 5: +120) = <b>150</b></td></tr></table>
-<p class="src">UnitCommonDataManager.GetMaxLevel; unit_rarity.maxLevel, unit_rank_info_table.addMaxLevel,
-property Game_PlayerProp_MaxUnitRank = 5</p>
+<pre class="sum">Stat = cut( (Min + (Max − Min) × L) × P / 100 )
+
+L   = (level − 1) / max level        (kept between 0 and 1)
+Min = the class tier's lowest value for this stat
+Max = the class tier's highest value for this stat
+P   = the unit's own % for this stat (about 110–130)</pre>
+<ul>
+<li><b>L</b> divides by the max level, not max level − 1, so even at max level it is a little under 1
+(149 / 150).</li>
+<li><b>Max level</b> = 30 (the same for every rarity) + 120 (the bonus of the highest rank, rank 5) =
+<b>150</b>.</li>
+<li>Equipment, the personal weapon's level bonuses and abilities are added afterwards.</li>
+<li>There is no separate magic attack: magic classes use ATK.</li>
+</ul>
 
 <h3>Other stats from the class</h3>
-<table>
-<tr><th>Range, block, targets, attack interval, move speed</th><td>the class tier's values as they are</td></tr>
-<tr><th>Attack speed</th><td>class value + 100 (%)</td></tr>
-<tr><th>Crit chance</th><td>base 0 %, cap 50 %</td></tr>
-<tr><th>Crit damage</th><td>base 150 %, cap 300 % (the game shows it as +50 %: on top of normal damage)</td></tr>
-<tr><th>Flying units</th><td>block 0, whatever the class says (seen in game)</td></tr>
-<tr><th>Element</th><td>advantage ×1.2, disadvantage ×0.8</td></tr>
-</table>
-<p class="src">PlayerData.Setup; CharacterDataBase static defaults; property Game_PlayerProp_AdvantageAttributeRate / DisadvantageAttributeRate</p>
-<p><b>Awakened</b> (the gold text in race traits) = all 5 awakening nodes unlocked: the points spent
-on awakening must reach 5, and every node costs 1. <span class="src">PlayerData.IsAwakingCompleted;
-property Game_UnitPrimalAbility_PersonalPointLimit = 5</span></p>
-<p>The game's stat panel (潜在覚醒 view): <b>Lv. Max</b> = class 5, max level, with every awakening
-node that changes a stat (HP, ATK, DEF, MDEF, range, attack speed, deploy cost, crit); <b>Lv. 1</b> =
-class 1, level 1, no awakening. Neither includes equipment, sub skills or the personal weapon.</p>
+<pre class="sum">Attack speed = S + 100 (%)
+Crit chance  = 0 %   + awakening,  never above 50 %
+Crit damage  = 150 % + awakening,  never above 300 %
+
+S = the class tier's attack speed value</pre>
+<ul>
+<li><b>Range, Block, Targets, attack interval, move speed</b>: the class tier's values as they are.</li>
+<li><b>Crit damage</b> is shown in the game as +50 %: the part on top of normal damage.</li>
+<li><b>Flying units</b>: Block 0, whatever the class says (seen in game).</li>
+<li><b>Element</b>: ×1.2 with advantage, ×0.8 with disadvantage (see Damage).</li>
+<li><b>Awakened</b> (the gold text in race traits) = all 5 awakening nodes unlocked: every node costs 1
+point and the points must reach 5.</li>
+<li>The game's stat panel (潜在覚醒 view) and the wiki's Stats tab: <b>Lv. Max</b> = class 5, max level,
+with every awakening node that changes a stat (HP, ATK, DEF, MDEF, range, attack speed, deploy cost,
+crit); <b>Lv. 1</b> = class 1, level 1, no awakening. Neither includes equipment, sub skills or the
+personal weapon.</li>
+</ul>
 
 <h3>Skill levels</h3>
-<pre>levels  = highest level in the skill's recipe + 1   (no recipe: 1 level)
-rate    = (level − 1) / (levels − 1)                (only 1 level: rate = 1, the max values)</pre>
-<p>The number of levels comes from the skill's upgrade recipe (<code>recipe_skill</code>), not from the
-skill's own <code>maxLevel</code> field: every unit skill has 5 levels, including the 100 skills
-(mostly second skills) whose <code>maxLevel</code> says 1. <span class="src">Skill.CalcParamRate,
-SkillDataBase.GetMaxLevel</span></p>
+<pre class="sum">R = (level − 1) / (N − 1)          (N = 1: R = 1, the last-level values)
+
+N = how many levels the skill has = its upgrade recipe's highest level + 1   (no recipe: 1)
+R = the level rate: 0 at level 1, 1 at the last level</pre>
+<ul>
+<li><b>N</b> comes from the skill's upgrade recipe, not from the skill's own "max level" number: every
+unit skill has 5 levels, including the 100 skills (mostly second skills) whose own number says 1.</li>
+<li><b>R</b> is used by the next two formulas.</li>
+</ul>
+<p>Example: a 5-level skill at level 3: R = 2 / 4 = <b>0.5</b>.</p>
 
 <h3>Cooldown, duration and cost at a level</h3>
-<pre>value = cut( rate × max + (1 − rate) × min )        (in frames; ÷ 30 for seconds)</pre>
-<p>For <code>minCoolTime/maxCoolTime</code>, <code>minDurationTime/maxDurationTime</code> and
-<code>minCost/maxCost</code>. The OC skill's cooldown uses the parent skill's rate.
-Example: Platina's Dullahan Form, 1470 → 1350 frames: 49, 48, 47, 46, 45 s.
-<span class="src">Skill.CalcParamRate, Skill.CalcValueByParamRate</span></p>
+<pre class="sum">Value = cut( R × Last + (1 − R) × First )        (frames; ÷ 30 for seconds)
+
+R     = the level rate (Skill levels)
+First = the value at level 1
+Last  = the value at the last level</pre>
+<ul>
+<li>The same for the cooldown, the duration and the skill's cost.</li>
+<li>An OC skill's cooldown uses its parent skill's R.</li>
+</ul>
+<p>Example: Platina's Dullahan Form, cooldown 1470 → 1350 frames: <b>49, 48, 47, 46, 45 s</b>.</p>
 
 <h3>Effect values at a level</h3>
-<pre>maxParam = 0  →  value = param (no change with level)
-otherwise      v = (1 − rate) × param + rate × maxParam
-               value = the next whole number if it is within 0.1 of it, else v cut</pre>
-<p>Each effect (talent) has <code>param</code> (level 1) and <code>maxParam</code> (last level).
-Example: Soul Blade ATK +20 % → +50 %: level 2 = 27.5 → <b>27</b> (not within 0.1 of 28), so
-×1.2, ×1.27, ×1.35, ×1.42, ×1.5. A few skills have <code>add_max_level</code>: past that level the value
-goes on from maxParam toward <code>addMaxParam</code> (no unit skill uses it now).
-<span class="src">cAbilityTalent.CreateTalentData, SnapToNearestInt</span></p>
+<pre class="sum">V     = (1 − R) × First + R × Last
+Value = V rounded up if it is within 0.1 of the next whole number, otherwise V cut
+
+R     = the level rate (Skill levels)
+First = the effect's value at level 1
+Last  = the effect's value at the last level   (0 = no change with level: Value = First)</pre>
+<ul>
+<li>A few skills have extra levels past the last one, where the value goes on from Last toward a third
+value; no unit skill uses this now.</li>
+</ul>
+<p>Example: Soul Blade, ATK +20 % → +50 %. Level 2: V = 0.75 × 20 + 0.25 × 50 = 27.5, not within 0.1 of
+28, so <b>27</b>. All five levels: ×1.2, ×1.27, ×1.35, ×1.42, ×1.5.</p>
 
 <h3>How effect numbers read in the texts</h3>
-<table>
-<tr><th><code>[MAG,t,p]</code> on a "…RatePlus" effect</th><td>1 + value / 100 (PowerRatePlus 60 → ATK ×1.6)</td></tr>
-<tr><th><code>[MAG,t,p]</code> on a "…RateMinus" effect</th><td>1 − value / 100</td></tr>
-<tr><th><code>[MAG,t,p]</code> other effects</th><td>value / 100</td></tr>
-<tr><th><code>[attack,[MAG,t,p]]</code></th><td>value / 100 of the unit's ATK (DirectHeal 400 → ATK ×4); also hp, defense, mdefense</td></tr>
-<tr><th><code>[0,t,p]</code></th><td>the raw value</td></tr>
-<tr><th><code>[duration]</code>, <code>[cost]</code></th><td>the skill's duration (s) and cost at the level</td></tr>
-</table>
+<pre class="sum">"… up" effects       ×(1 + V / 100)        V 60  → ATK ×1.6
+"… down" effects     ×(1 − V / 100)        V 30  → ×0.7
+"% of a stat"        V / 100 × the stat    V 400 → heals ATK ×4
+other effects        V / 100,  or V as it is
+
+V = the effect's value at the skill's level (Effect values at a level)</pre>
+<ul>
+<li>"% of a stat" uses the unit's own ATK, HP, DEF or MDEF.</li>
+<li>Durations and costs in the texts are the skill's own at its level, in seconds.</li>
+</ul>
 
 <h3>Stats in battle</h3>
 <pre class="sum">Stat = A × B + C          (then kept inside the stat's limits)
@@ -94,7 +134,7 @@ group the % values <b>add up</b>; the groups <b>multiply</b>. Each group's % = i
 <li>A debuff on a target with resistance is smaller: debuff × (100 − resistance) / 100.</li>
 <li><b>Only the highest counts</b> (no adding) for Attack speed % and Move speed %. That is why the game
 has a separate "attack speed (stacks)" effect for the ones meant to add.</li>
-<li>A "…Fixed" effect (for example range fixed) replaces the result.</li>
+<li>A "fixed" effect (for example range fixed) replaces the result.</li>
 <li><b>ATK, DEF and MDEF</b> in battle stay between <b>50 % and 1000 %</b> of A, and debuffs on them are made
 smaller by the target's "base status" resistance.</li>
 <li>"In the party" effects are added the same way before the battle, so they are already inside A.</li>
@@ -102,8 +142,30 @@ smaller by the target's "base status" resistance.</li>
 not checked yet.</li>
 </ul>
 <p>Example: ATK 1000, a skill ATK +20 % and a trait ATK +30 % (both Normal), and ATK +100:
-1000 × (1 + 0.5) + 100 = <b>1600</b>.
-<span class="src">BuffParamData.CalcParamNum, UpdateTargetParam, IsMaxRateTarget</span></p>
+1000 × (1 + 0.5) + 100 = <b>1600</b>.</p>
+
+<h3>Stacking (all effects)</h3>
+<pre class="sum">same kind, same group       add          +20 % and +30 %  = +50 %
+same kind, other groups     multiply     ×1.2 × 1.3       = ×1.56
+flat (+100, −1)             add, after the %
+damage up / damage cut      each multiplies on its own
+only the highest counts     attack speed %, move speed %, darkness (miss %), poison, scratch damage
+"fixed" effects             replace the value</pre>
+<ul>
+<li>The same rules for every source: skills, race traits, awakening nodes, the personal weapon, sub skills,
+and other units' "in the party" effects. Two <b>different</b> effects of the same kind both count.</li>
+<li><b>Sub skills on one unit</b>: the game groups a unit's sub skills by their Japanese name up to the first
+space (「攻撃力強化 III」 → 「攻撃力強化」). One sub skill per group works: the higher rarity (equal rarity: the
+first one). So the same sub skill twice counts once, and the tiers of a line (HP Boost I–IV, ATK Boost I–IV …)
+count only the highest. Any other name is its own group: ATK Boost IV + ATK Boost+Crit Rate both count. Only
+the name decides, not what the sub skill does.</li>
+<li><b>"In the party" effects</b>: each unit's sub skills are grouped as above first, then the party effects
+of all units add up into one table. Two different units with the same party sub skill both count (two
+Paradigm Cost holders: deploy cost −6).</li>
+<li>Debuffs are subtracted inside the same group, then limits apply (see Stats in battle; deploy cost
+never below 0).</li>
+<li>The four groups are Normal, Map, Prayer and Extra (Stats in battle).</li>
+</ul>
 
 <h3>Damage</h3>
 <pre class="sum">Damage = ( the larger of  H − D ,  H × 10 % ) × (1 − cut₁ %) × (1 − cut₂ %) × …
@@ -121,7 +183,7 @@ counts here too.</li>
 <li><b>Crit</b>: a hit is critical if a random number 0–99 is below the attacker's crit chance + the
 target's extra crit chance taken. Crit damage starts at 150 % (+50 %), cap 300 %, plus the target's extra crit
 damage taken. A crit multiplies H, so it also counts before DEF.</li>
-<li><b>E</b>: from the game's settings (#11 = 120, #12 = 80).</li>
+<li><b>E</b>: from the game's settings (120 and 80).</li>
 <li><b>D</b>: DEF or MDEF in battle. True damage (Ignore DEF, 防御無視) skips it.</li>
 <li><b>10 % floor</b>: a hit never does less than 10 % of H, however high the DEF.</li>
 <li><b>Damage cut %</b>: each effect is its own (1 − cut %), and they also <b>multiply</b>: −30 % and −30 % =
@@ -129,71 +191,61 @@ damage taken. A crit multiplies H, so it also counts before DEF.</li>
 floor. "Damage taken +10 %" is a cut of −10 %: ×1.1.</li>
 <li>Each step drops the fraction. After that: a fixed-damage effect replaces the number, then cover (an ally
 takes the hit), barrier, and HP.</li>
+<li>The data keeps damage up and cut as the whole multiplier, not the %: up 120 = +20 %, 80 = −20 %; cut 70 =
+30 % cut (70 % gets through), 110 = takes +10 %. A second number, if there, is the chance it works.</li>
+<li><b>Barrier</b> absorbs damage until broken. Its amount is a fixed number, a % of max HP, or a % of ATK.</li>
 </ul>
 <p>Example: ATK 2000, damage up +20 %, a crit (150 %), element advantage → H = 2000 × 1.2 × 1.5 × 1.2 = 4320.
 Target DEF 1500 and damage cut 30 %: (4320 − 1500) × 0.7 = <b>1974</b>. Same hit on DEF 5000: 4320 − 5000 is below
-432, so 432 × 0.7 = <b>302</b>.
-<span class="src">DamageCalculater.DamageAction; TalentOption.GetResult / CalcRateValue (Damage = Rate: 1.0 × each v / 100);
-TalentActionDamageUp (BeforeCalc 9/10), TalentActionDamageCut (BeforeDamage 13/14); BattleObject.EvaluateCritical,
-AttackData.SetCritical; CharacterType.GetAttributeRate</span></p>
-<table>
-<tr><th>How the data stores them</th><td>the whole multiplier, not the %: damage up <b>120</b> = +20 %, 80 = −20 %;
-damage cut <b>70</b> = cut 30 % (the damage that gets through), 110 = takes +10 %. A second value, if there, is
-the chance the effect works</td></tr>
-<tr><th>Barrier (AddBarrier)</th><td>absorbs damage until broken. First value = what the amount is based on:
-0 a fixed amount, 1 % of max HP, 2 % of ATK; second value = the amount</td></tr>
-</table>
+432, so 432 × 0.7 = <b>302</b>.</p>
 
 <h3>Ailments</h3>
 <p>How an ailment lands depends on its group. <b>R</b> = the target's resistance to that ailment (0–100).</p>
 
 <h4>Stun: a gauge (no dice)</h4>
-<pre class="sum">gauge = gauge + build-up × (100 − R) / 100        stunned when the gauge reaches 100
-build-up 100 or more: stunned at once, R is not used
-R = 100: never stunned</pre>
+<pre class="sum">G = G + S × (100 − R) / 100        stunned when G reaches 100
+
+G = the target's stun gauge
+S = the effect's stun build-up       (100 or more: stunned at once, R is not used)
+R = the target's stun resistance     (100: never stunned)</pre>
 <ul>
-<li>Values: <code>[build-up, duration]</code>. The texts' words: low ≈ 8–15, medium ≈ 35, large ≈ 50,
-very large ≈ 80.</li>
+<li>The texts' words: low ≈ 8–15, medium ≈ 35, large ≈ 50, very large ≈ 80.</li>
 <li>Build-up 100 (stuns in one hit, even through high resistance): Donne skill 1 (on activation, enemies in
 range; her text doesn't say it) and Seren skill 2.</li>
 <li>The stun's duration is shortened by a second "stun time" resistance, which enemies only get from effects.</li>
 </ul>
-<p class="src">TalentActionAddStun.ActExecute, CharaStatus.AddStun (StunThreshold = 100), CharacterStatusResistance.IsMax</p>
+<p>Example: build-up 35 on an enemy with resistance 50: 17.5 per hit, so the 6th hit stuns.</p>
 
 <h4>Chance: Poison, Burn, Freeze, Petrify, Darkness, Curse, Launch</h4>
-<pre class="sum">lands if  a random number 0–99  <  chance × (100 − R) / 100
-R = 100: immune</pre>
-<p>"Ailment chance up" effects raise the chance. The texts' words (rarely, low, medium, high) follow no
-rule: 20 % is called "rarely", "low" or "medium" on different units, so the wiki shows the numbers.</p>
-<table>
-<tr><th>Ailment</th><th>Values in the data</th></tr>
-<tr><td>Burn</td><td>chance, damage (% of the attacker's ATK), duration (usually 900 = 30 s); damage every 3 s as true damage</td></tr>
-<tr><td>Poison</td><td>chance, strength, duration (often "until cured"). One poison with three strengths:
-<b>120</b> Poison (毒), <b>190</b> Deadly Poison (猛毒), <b>280</b> Super Poison (超毒). The strength is the
-damage: every 3 s the target takes exactly that much true damage (DEF doesn't help), so 190 ≈ 63 per second.
-Several poisons don't add up: the strongest counts. Poison does not stop healing; 水毒禍 (Water Poison Curse) is a different
-status that blocks some healing and deals 7 % of current HP every 2 s.</td></tr>
-<tr><td>Freeze</td><td>chance, duration (usually 180 = 6 s)</td></tr>
-<tr><td>Petrify</td><td>chance, duration (usually 180 = 6 s); also a "petrify time" resistance</td></tr>
-<tr><td>Darkness</td><td>chance, miss % (40 or 60), duration; only the strongest darkness stays on a target</td></tr>
-<tr><td>Curse</td><td>curse type (1–13: what the curse does, for example "1 % of max HP every second"),
-chance (always 100), duration</td></tr>
-<tr><td>Launch</td><td>chance, duration</td></tr>
-</table>
-<p class="src">TalentActionAddPoison (IsActivationRandomAbility), TalentActionAddBurn and the others (GameRandom.Range),
-BuffParamData.IsMaxFixedTarget (PoisonDamage)</p>
+<pre class="sum">lands if  a random number 0–99  <  C × (100 − R) / 100
+
+C = the effect's chance (%)
+R = the target's resistance to it    (100: immune)</pre>
+<ul>
+<li>"Ailment chance up" effects raise C. The texts' words (rarely, low, medium, high) follow no rule: 20 % is
+called "rarely", "low" or "medium" on different units, so the wiki shows the numbers.</li>
+<li><b>Burn</b>: damage = a % of the attacker's ATK, every 3 s, as true damage; usually 30 s.</li>
+<li><b>Poison</b>: one poison with three strengths: <b>120</b> Poison (毒), <b>190</b> Deadly Poison (猛毒),
+<b>280</b> Super Poison (超毒). The strength is the damage: every 3 s the target takes exactly that much true
+damage (DEF doesn't help), so 190 ≈ 63 per second. Several poisons don't add up: the strongest counts. Often
+lasts until cured. Poison does not stop healing; 水毒禍 (Water Poison Curse) is a different status that blocks
+some healing and deals 7 % of current HP every 2 s.</li>
+<li><b>Freeze</b>: usually 6 s. <b>Petrify</b>: usually 6 s, with its own "petrify time" resistance too.</li>
+<li><b>Darkness</b>: the target misses 40 % or 60 % of its attacks; only the strongest darkness stays on a target.</li>
+<li><b>Curse</b>: always 100 % chance; 13 kinds, each its own effect (for example 1 % of max HP every second).</li>
+<li><b>Launch</b>: a chance and a duration.</li>
+</ul>
+<p>Example: 30 % chance on an enemy with resistance 50: lands 15 % of the time.</p>
 
 <h4>Always land: Time stop, Bind, Web, Tentacle</h4>
 <p>No dice and no resistance: enemies have no resistance to these at all.</p>
-<table>
-<tr><th>Ailment</th><th>Values in the data</th></tr>
-<tr><td>Time stop</td><td>duration (15 = 0.5 s, 30 = 1 s)</td></tr>
-<tr><td>Bind</td><td>duration (60–90 = 2–3 s)</td></tr>
-<tr><td>Tentacle</td><td>duration (150 = 5 s)</td></tr>
-<tr><td>Web</td><td>slow % (attack and move speed)</td></tr>
-</table>
+<ul>
+<li><b>Time stop</b>: 0.5–1 s. <b>Bind</b>: 2–3 s. <b>Tentacle</b>: 5 s.</li>
+<li><b>Web</b>: slows the target's attacks and movement by a %.</li>
+</ul>
 
 <h4>Enemy resistance</h4>
+<p>How many of the game's 3,371 enemies resist each ailment (data 427d684a66):</p>
 <table>
 <tr><th>Ailment</th><th>Immune (100)</th><th>Partly (1–99)</th><th>None (0)</th></tr>
 <tr><td>Stun</td><td>632</td><td>450</td><td>2289</td></tr>
@@ -205,8 +257,9 @@ BuffParamData.IsMaxFixedTarget (PoisonDamage)</p>
 <tr><td>Launch</td><td>702</td><td>220</td><td>2449</td></tr>
 <tr><td>Curse</td><td>55</td><td>11</td><td>3305</td></tr>
 </table>
-<p class="src">Of the 3,371 enemies in the game data (427d684a66); enemydata stunResistance … curseResistance</p>
 
 <h3>Time</h3>
-<p>All times (cooldowns, durations, ACT duration, redeploy) are frames at <b>30 per second</b>:
-450 frames = 15 s.</p>
+<pre class="sum">Seconds = F / 30
+
+F = frames (cooldowns, durations, ACT duration, redeploy)</pre>
+<p>Example: 450 frames = <b>15 s</b>.</p>
