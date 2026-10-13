@@ -76,7 +76,7 @@ const UI = {
     ar_b1: "<30", ar_b30: "30–49", ar_b50: "50–79", ar_b80: "80–99", ar_b100: "100",
     arTip_b1: "low", arTip_b30: "medium", arTip_b50: "large", arTip_b80: "very large", arTip_b100: "fills the gauge in one hit",
     ar_c1: "≤20%", ar_c21: "21–50%", ar_c51: "51–99%", ar_c100: "100%",
-    ps_s120: "Poison", ps_s190: "Deadly", ps_s280: "Super", psTip: "damage every 3 s", psHead: "strength", psDmg: "dmg", buildUp: "build-up", chance: "chance",
+    ps_s120: "Poison", ps_s190: "Deadly", ps_s280: "Super", psTip: "damage every 3 s", psHead: "strength", psDmg: "dmg", buildUp: "build-up", chance: "chance", fxOn: "skill on", fxOff: "skill off",
     fxTileTo: "Tile becomes", fxWeatherTo: "Weather becomes", trueDmg: "true",
     
     fxSearch: "Search skill / trait / weapon text…", fxSource: "Source", fs_skill: "Active skill", fs_trait: "Trait", fs_weapon: "Weapon",
@@ -344,9 +344,9 @@ function optOf(id) {
 }
 function parseFx(r, src) {
   FXBLK ??= Object.fromEntries(W.lookups.traitTags.map(t => [t.id, t.cat]));
-  const [id, scope, who, val = ""] = r.split("|");
+  const [id, scope, who, val = "", when = ""] = r.split("|");
   const num = k => { const m = val.match(new RegExp(k + "(\\d+)")); return m ? +m[1] : null; };
-  return { src, id, blk: FXBLK[id] || W._tagById[id]?.cat || "special", scope, who: who ? who.split(",") : [],
+  return { src, id, when, blk: FXBLK[id] || W._tagById[id]?.cat || "special", scope, who: who ? who.split(",") : [],
     build: num("b"), chance: num("c"), strength: num("s"), el: num("e"), wx: num("w"), field: num("f") };
 }
 const fxAllies = () => new Set(W.lookups.fxTabs?.allies || []);
@@ -1010,13 +1010,14 @@ function fxChips(list, src, keepOrder) {
   const parsed = list.map(r => parseFx(r, src));
   if (!keepOrder) parsed.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
   return `<div class="tags">${parsed.map(r => {
-    const t = byId[r.id] || W._tagById[r.id], k = `${r.id}|${r.scope}|${r.who}|${r.build}|${r.chance}|${r.strength}`;
+    const t = byId[r.id] || W._tagById[r.id], k = `${r.id}|${r.scope}|${r.who}|${r.build}|${r.chance}|${r.strength}|${r.when}`;
     if (!t || seen.has(k)) return ""; seen.add(k);
     // the real value in place of the texts' words: Stun build-up, chance %, poison strength
     const val = r.build != null ? `${ui("buildUp")} ${r.build}` : r.chance != null && r.chance < 100 ? `${r.chance}%` : "";
     const str = r.strength ? ui("ps_s" + r.strength) : "";
     const extra = (r.scope ? ` <small>${esc(ui(r.scope))}</small>` : "") + (r.who.length ? ` <small>${esc(r.who.map(whoLabel).join(", "))}</small>` : "")
       + (str ? ` <small>${esc(str)}</small>` : "") + (val ? ` <small>${esc(val)}</small>` : "")
+      + (r.when ? ` <small>${esc(ui(r.when === "on" ? "fxOn" : "fxOff"))}</small>` : "")
       + (r.el ? ` <small>→ ${esc(term("elements", W.lookups.elements[r.el]))}</small>` : "")
       + (r.wx ? ` <small>→ ${esc(term("weather", W.lookups.weather[r.wx]))}</small>` : "")
       + (r.field ? ` <small>${esc(fieldText(r.field))}</small>` : "");
