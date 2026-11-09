@@ -655,7 +655,7 @@ function faceHTML(u, res, big, cost) {
 
 function buildTiles() {
   const box = $("#units");
-  const order = [...W.units].sort((a, b) => b.id - a.id);        // newest first
+  const order = [...W.units].sort((a, b) => b.picture - a.picture);   // newest first (picture book number)
   box.innerHTML = order.map(u => `<button class="tile" data-id="${u.id}" title="${esc(tx(`unit.${u.id}.title`))}">
     ${faceHTML(u, u._res)}<div class="nm">${esc(unitName(u))}</div></button>`).join("") + `<div class="empty" hidden>${ui("none")}</div>`;
   box.onclick = e => { const t = e.target.closest(".tile"); if (t) select(+t.dataset.id); };
@@ -663,17 +663,18 @@ function buildTiles() {
   sortTiles();
   markSelected();
 }
-/* unit list order (owner, session 5): Release (= unit id: the data has no release date; the
-   gacha tables only keep banners from late 2024) | Name | Class; ↑↓ = direction. The tiles are
-   only moved, not rebuilt. */
+/* unit list order (owner, session 5): Release | Name | Class; ↑↓ = direction. The tiles are
+   only moved, not rebuilt. Release = the unit's picture book number (`picture`, unique 1..N): the
+   data has no release date and the unit id is not in release order (session 13: 463 and 471 came
+   after 488); the newest picture numbers match what each update added. */
 const SORTS = ["release", "name", "class"];
 const SORT_DIR0 = { release: "desc", name: "asc", class: "asc" };   // a new sort key starts here
 function sortTiles() {
   const key = state.sort, dir = state.sortDir === "asc" ? 1 : -1;
   const cmp = {
-    release: (a, b) => a.id - b.id,
-    name: (a, b) => unitName(a).localeCompare(unitName(b), isJa() ? "ja" : "en") || b.id - a.id,
-    class: (a, b) => a.class - b.class || (b.id - a.id) * dir,     // newest first inside a class
+    release: (a, b) => a.picture - b.picture,
+    name: (a, b) => unitName(a).localeCompare(unitName(b), isJa() ? "ja" : "en") || b.picture - a.picture,
+    class: (a, b) => a.class - b.class || (b.picture - a.picture) * dir,     // newest first inside a class
   }[key];
   const box = $("#units");
   for (const u of [...W.units].sort((a, b) => cmp(a, b) * dir)) box.appendChild(u._el);
